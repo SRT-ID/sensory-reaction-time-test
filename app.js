@@ -91,9 +91,8 @@ function handleFirebaseAuthError(error) {
     const errMessage = error?.message || '';
 
     if (errCode === 'auth/operation-not-allowed' || errCode === 'auth/api-key-not-valid' || errMessage.includes('CONFIGURATION_NOT_FOUND')) {
-        const detailMsg = 'خدمة مصادقة المستخدمين غير مفعّلة سحابياً بعد. يرجى فتح قسم Authentication في Firebase Console والضغط على "البدء" (Get Started) وتفعيل "Anonymous".';
-        updateCloudStatusUI('error', '🔴 يرجى البدء وتفعيل Authentication في Firebase', detailMsg);
-        showDataStatus(`المزامنة السحابية متوقفة: افتح قسم Authentication في Firebase Console واضغط "البدء" ثم فعّل "Anonymous".`, 'warning');
+        const detailMsg = 'خدمة مصادقة المستخدمين تحتاج تفعيل زر (Get Started) ثم تفعيل Anonymous في قسم Authentication بـ Firebase Console.';
+        updateCloudStatusUI('offline', '🟠 حفظ محلي (انقر للتفعيل السحابي)', detailMsg);
     } else {
         const detailMsg = errMessage || 'تعذر الاتصال بـ Firebase.';
         updateCloudStatusUI('offline', '🟠 حفظ محلي على الجهاز', detailMsg);
