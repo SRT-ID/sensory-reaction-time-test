@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مقياس زمن الرجع الحسي الإلكتروني لذوي الإعاقات العقلية</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- XLSX workbook export with worksheet styling support -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="light-mode">
+
+    <!-- Main Container -->
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-target="home-view">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    </span>
+                    <span class="nav-text">الرئيسية</span>
+                </a>
+                <a href="#" class="nav-item" data-target="tests-view">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14h6"/><path d="M9 10h6"/><path d="M9 18h6"/></svg>
+                    </span>
+                    <span class="nav-text">الاختبارات</span>
+                </a>
+                <a href="#" class="nav-item" data-target="settings-view">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </span>
+                    <span class="nav-text">الإعدادات</span>
+                </a>
+                <a href="#" class="nav-item" data-target="results-view">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    </span>
+                    <span class="nav-text">النتائج والتقرير</span>
+                </a>
+                <a href="#" class="nav-item" data-target="support-view">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </span>
+                    <span class="nav-text">المساعدة والدعم</span>
+                </a>
+            </nav>
+
+            <!-- Night Mode & Cloud Status at bottom of sidebar -->
+            <div class="sidebar-footer">
+                <div class="cloud-status-badge" id="cloudStatusBadge" title="انقر لعرض تفاصيل المزامنة السحابية">
+                    <span class="status-indicator-dot" id="cloudStatusDot"></span>
+                    <span class="status-text" id="cloudStatusText">جاري الاتصال بالسحابة...</span>
+                </div>
+                <button class="night-mode-toggle" id="nightModeBtn">
+                    <span class="toggle-icon">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" class="sun-icon"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" class="moon-icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    </span>
+                    <span class="toggle-text">الوضع الليلي</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+
+
+            <!-- Screen 1: Home View (Dashboard) -->
+            <section id="home-view" class="view-screen active-screen">
+                <!-- Welcome Banner -->
+                <div class="welcome-banner">
+                    <div class="welcome-text">
+                        <h1>مقياس زمن الرجع الحسي الإلكتروني لذوي الإعاقات العقلية</h1>
+                        <p class="scale-author">إعداد: أ.د. منى كمال أمين عبد العاطي</p>
+                        <p class="scale-affiliation">أستاذ ورئيس قسم الإعاقة العقلية، كلية علوم ذوي الاحتياجات الخاصة، جامعة بني سويف – مصر</p>
+                    </div>
+                    <div class="welcome-ill">
+                        <svg viewBox="0 0 200 120" width="200" height="120">
+                            <circle cx="100" cy="60" r="40" fill="rgba(255,255,255,0.2)"/>
+                            <rect x="70" y="30" width="60" height="60" rx="10" fill="rgba(255,255,255,0.15)"/>
+                            <path d="M40 80 C 80 50, 120 70, 160 30" stroke="white" stroke-width="4" stroke-linecap="round" fill="none"/>
+                            <circle cx="160" cy="30" r="8" fill="#ff7675"/>
+                            <circle cx="40" cy="80" r="8" fill="#55efc4"/>
+                        </svg>
+                    </div>
+                </div>
+
+
+
+                <!-- Navigation Quick Cards Grid -->
+                <div class="quick-nav-grid">
+                    <button class="quick-card nav-link-btn" data-target="tests-view" style="--card-color: #6c5ce7;">
+                        <span class="quick-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 3l14 9-14 9V3z"/></svg></span>
+                        <div class="quick-card-info">
+                            <h5>إجراء اختبار جديد</h5>
+                            <p>إنشاء اختبار جديد وتخصيصه للطفل</p>
+                        </div>
+                    </button>
+                    <button class="quick-card nav-link-btn" data-target="results-view" style="--card-color: #00b894;">
+                        <span class="quick-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+                        <div class="quick-card-info">
+                            <h5>النتائج والتقارير</h5>
+                            <p>عرض وتحليل نتائج وجلسات الاختبارات</p>
+                        </div>
+                    </button>
+                    <button class="quick-card nav-link-btn" data-target="settings-view" style="--card-color: #e17055;">
+                        <span class="quick-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09z"/></svg></span>
+                        <div class="quick-card-info">
+                            <h5>الإعدادات</h5>
+                            <p>ضبط إعدادات الاختبارات والمثيرات</p>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Lower Dashboard Grid -->
+                <div class="dashboard-grid">
+                    <!-- Column 1: Latest Results Table -->
+                    <div class="grid-panel latest-results-panel">
+                        <div class="panel-header">
+                            <h4>أحدث النتائج</h4>
+                            <button class="panel-action nav-link-btn" data-target="results-view">عرض الكل</button>
+                        </div>
+                        <div class="table-container">
+                            <table class="dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>الطفل</th>
+                                        <th>نوع الاختبار</th>
+                                        <th>التاريخ والوقت</th>
+                                        <th>متوسط الرجع</th>
+                                        <th>الدقة</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboardLatestResultsBody">
+                                    <!-- Rendered dynamically in app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Available Tests list -->
+                    <div class="grid-panel tests-list-panel">
+                        <div class="panel-header">
+                            <h4>الاختبارات المتوفرة</h4>
+                        </div>
+                        <div class="test-category-group">
+                            <h5>الاختبارات البصرية</h5>
+                            <div class="mini-test-list">
+                                <div class="mini-test-item">
+                                    <span class="test-dot visual-dot"></span>
+                                    <div class="test-item-info">
+                                        <h6>البصري البسيط</h6>
+                                        <p>مثير بصري واحد - استجابة بزر المسافة</p>
+                                    </div>
+                                    <button class="launch-test-btn" data-test-type="visual-simple">ابدأ</button>
+                                </div>
+                                <div class="mini-test-item">
+                                    <span class="test-dot visual-dot"></span>
+                                    <div class="test-item-info">
+                                        <h6>البصري التمييزي</h6>
+                                        <p>مثير مستهدف ومثيرات مشتتة - زر المسافة</p>
+                                    </div>
+                                    <button class="launch-test-btn" data-test-type="visual-discriminative">ابدأ</button>
+                                </div>
+                                <div class="mini-test-item">
+                                    <span class="test-dot visual-dot"></span>
+                                    <div class="test-item-info">
+                                        <h6>البصري الاختياري</h6>
+                                        <p>مثيرات مختلفة، لكل مثير زر استجابة (أسهم)</p>
+                                    </div>
+                                    <button class="launch-test-btn" data-test-type="visual-choice">ابدأ</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="test-category-group">
+                            <h5>الاختبارات السمعية</h5>
+                            <div class="mini-test-list">
+                                <div class="mini-test-item">
+                                    <span class="test-dot auditory-dot"></span>
+                                    <div class="test-item-info">
+                                        <h6>السمعي البسيط</h6>
+                                        <p>مثير صوتي واحد - استجابة بزر المسافة</p>
+                                    </div>
+                                    <button class="launch-test-btn" data-test-type="auditory-simple">ابدأ</button>
+                                </div>
+                                <div class="mini-test-item">
+                                    <span class="test-dot auditory-dot"></span>
+                                    <div class="test-item-info">
+                                        <h6>السمعي التمييزي</h6>
+                                        <p>صوت مستهدف وأصوات مشتتة - زر المسافة</p>
+                                    </div>
+                                    <button class="launch-test-btn" data-test-type="auditory-discriminative">ابدأ</button>
+                                </div>
+                                <div class="mini-test-item">
+                                    <span class="test-dot auditory-dot"></span>
+                                    <div class="test-item-info">
+                                        <h6>السمعي الاختياري</h6>
+                                        <p>أصوات مختلفة، لكل صوت زر استجابة (A, B, C, D)</p>
+                                    </div>
+                                    <button class="launch-test-btn" data-test-type="auditory-choice">ابدأ</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: Charts/Performance Stats -->
+                    <div class="grid-panel charts-panel">
+                        <div class="panel-header">
+                            <h4>إحصائيات الأداء العام</h4>
+                        </div>
+                        <div class="dashboard-chart-box">
+                            <h5>نسبة دقة الاستجابات</h5>
+                            <div class="chart-wrapper donut">
+                                <canvas id="dashboardAccuracyChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="dashboard-chart-box">
+                            <h5>سرعة الاستجابة عبر الأيام</h5>
+                            <div class="chart-wrapper line">
+                                <canvas id="dashboardReactionTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+
+            <!-- Screen 3: Tests Grid View -->
+            <section id="tests-view" class="view-screen">
+                <div class="section-header">
+                    <h3>إعداد جلسة الاختبار</h3>
+                    <p>يمكن إدخال بيانات الطالب والمختص أو تخطيها، ثم تحديد الاختبارات المطلوبة وبدء الجلسة.</p>
+                </div>
+
+                <!-- Setup Forms Row: Student + Specialist -->
+                <div class="test-setup-layout">
+                    <!-- Student Personal Data Panel -->
+                    <div class="setup-panel">
+                        <div class="setup-panel-header">
+                            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                            <h4>بيانات الطالب</h4>
+                        </div>
+                        <div class="styled-form">
+                            <div class="form-group">
+                                <label for="tsStudentName">اسم الطالب رباعي <span class="optional-label">(اختياري)</span></label>
+                                <input type="text" id="tsStudentName" placeholder="مثال: أحمد علي حسن">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="tsStudentAge">العمر (بالسنوات) <span class="optional-label">(اختياري)</span></label>
+                                    <input type="number" id="tsStudentAge" min="1" max="120" placeholder="مثال: 8">
+                                </div>
+                                <div class="form-group">
+                                    <label for="tsStudentGender">الجنس <span class="optional-label">(اختياري)</span></label>
+                                    <select id="tsStudentGender">
+                                        <option value="">اختر...</option>
+                                        <option value="ذكر">ذكر</option>
+                                        <option value="أنثى">أنثى</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="tsStudentIQ">نسبة الذكاء (IQ) <span class="optional-label">(اختياري)</span></label>
+                                <input type="number" id="tsStudentIQ" min="30" max="160" placeholder="مثال: 95">
+                            </div>
+                            <div class="form-group">
+                                <label for="tsStudentCategory">الفئة <span class="optional-label">(اختياري)</span></label>
+                                <select id="tsStudentCategory">
+                                    <option value="">غير محدد</option>
+                                    <option value="إعاقة عقلية">إعاقة عقلية</option>
+                                    <option value="متلازمة داون">متلازمة داون</option>
+                                    <option value="اضطراب طيف التوحد">اضطراب طيف التوحد</option>
+                                    <option value="الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد">الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد</option>
+                                    <option value="اضطراب فرط الحركة وتشتت الانتباه">اضطراب فرط الحركة وتشتت الانتباه</option>
+                                    <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
+                                    <option value="طبيعي">طبيعي</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Specialist Data Panel -->
+                    <div class="setup-panel">
+                        <div class="setup-panel-header">
+                            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            <h4>بيانات المختص</h4>
+                        </div>
+                        <div class="styled-form">
+                            <div class="form-group">
+                                <label for="tsSpecialistName">اسم المختص الفاحص <span class="optional-label">(اختياري)</span></label>
+                                <input type="text" id="tsSpecialistName" placeholder="مثال: أ. محمد أحمد">
+                            </div>
+                            <div class="form-group">
+                                <label for="tsSpecialistTitle">الصفة الوظيفية <span class="optional-label">(اختياري)</span></label>
+                                <input type="text" id="tsSpecialistTitle" placeholder="مثال: أخصائي تربية خاصة">
+                            </div>
+                            <div class="form-group">
+                                <label for="tsCenter">اسم المؤسسة / المركز <span class="optional-label">(اختياري)</span></label>
+                                <input type="text" id="tsCenter" placeholder="مثال: مركز الأمل للتأهيل">
+                            </div>
+                            <div class="form-group">
+                                <label for="tsSessionDate">تاريخ التطبيق <span class="optional-label">(اختياري)</span></label>
+                                <input type="date" id="tsSessionDate">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Test Selection Section -->
+                <div class="test-selection-section">
+                    <div class="selection-header">
+                        <div class="selection-header-text">
+                            <h4>اختر الاختبار أو الاختبارات</h4>
+                            <p>يمكنك تحديد اختبار واحد أو أكثر — ستُنفَّذ تباعاً مع عرض التعليمات قبل كل اختبار.</p>
+                        </div>
+                        <div class="select-all-bar">
+                            <button class="secondary-btn small-btn" id="selectAllTestsBtn">تحديد الكل</button>
+                            <button class="secondary-btn small-btn" id="clearAllTestsBtn">إلغاء الكل</button>
+                        </div>
+                    </div>
+
+                    <div class="test-modality-sections">
+                        <section class="test-modality-panel visual-panel" aria-labelledby="visualTestsTitle">
+                            <div class="modality-panel-header">
+                                <div><span class="modality-icon" aria-hidden="true">◉</span><h4 id="visualTestsTitle">الاختبارات البصرية</h4></div>
+                                <button type="button" class="secondary-btn small-btn select-modality-btn" data-prefix="visual-">تحديد البصرية</button>
+                            </div>
+                            <div class="tests-grid modality-tests-grid">
+                                <label class="test-card-panel selectable-test-card" for="chk-visual-simple">
+                                    <input type="checkbox" id="chk-visual-simple" value="visual-simple" class="test-checkbox">
+                                    <span class="test-card-badge visual">بسيط</span>
+                                    <div class="test-card-icon"><svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+                                    <h4>الاختبار البصري البسيط</h4>
+                                    <div class="card-check-indicator"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </label>
+                                <label class="test-card-panel selectable-test-card" for="chk-visual-discriminative">
+                                    <input type="checkbox" id="chk-visual-discriminative" value="visual-discriminative" class="test-checkbox">
+                                    <span class="test-card-badge visual">تمييزي</span>
+                                    <div class="test-card-icon"><svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+                                    <h4>الاختبار البصري التمييزي</h4>
+                                    <div class="card-check-indicator"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </label>
+                                <label class="test-card-panel selectable-test-card" for="chk-visual-choice">
+                                    <input type="checkbox" id="chk-visual-choice" value="visual-choice" class="test-checkbox">
+                                    <span class="test-card-badge visual">اختياري</span>
+                                    <div class="test-card-icon"><svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 12h16M12 4v16"/><path d="m16 8 4 4-4 4M8 8l-4 4 4 4"/></svg></div>
+                                    <h4>الاختبار البصري الاختياري</h4>
+                                    <div class="card-check-indicator"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </label>
+                            </div>
+                        </section>
+
+                        <section class="test-modality-panel auditory-panel" aria-labelledby="auditoryTestsTitle">
+                            <div class="modality-panel-header">
+                                <div><span class="modality-icon" aria-hidden="true">♫</span><h4 id="auditoryTestsTitle">الاختبارات السمعية</h4></div>
+                                <button type="button" class="secondary-btn small-btn select-modality-btn" data-prefix="auditory-">تحديد السمعية</button>
+                            </div>
+                            <div class="tests-grid modality-tests-grid">
+                                <label class="test-card-panel selectable-test-card" for="chk-auditory-simple">
+                                    <input type="checkbox" id="chk-auditory-simple" value="auditory-simple" class="test-checkbox">
+                                    <span class="test-card-badge auditory">بسيط</span>
+                                    <div class="test-card-icon"><svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div>
+                                    <h4>الاختبار السمعي البسيط</h4>
+                                    <div class="card-check-indicator"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </label>
+                                <label class="test-card-panel selectable-test-card" for="chk-auditory-discriminative">
+                                    <input type="checkbox" id="chk-auditory-discriminative" value="auditory-discriminative" class="test-checkbox">
+                                    <span class="test-card-badge auditory">تمييزي</span>
+                                    <div class="test-card-icon"><svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div>
+                                    <h4>الاختبار السمعي التمييزي</h4>
+                                    <div class="card-check-indicator"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </label>
+                                <label class="test-card-panel selectable-test-card" for="chk-auditory-choice">
+                                    <input type="checkbox" id="chk-auditory-choice" value="auditory-choice" class="test-checkbox">
+                                    <span class="test-card-badge auditory">اختياري</span>
+                                    <div class="test-card-icon"><svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+                                    <h4>الاختبار السمعي الاختياري</h4>
+                                    <div class="card-check-indicator"><svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                </label>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- Start Session Button -->
+                <div class="test-start-action">
+                    <button class="primary-btn large-start-btn" id="startTestsSessionBtn">
+                        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 3l14 9-14 9V3z"/></svg>
+                        بدء الجلسة
+                    </button>
+                </div>
+            </section>
+
+            <!-- Screen 4: Settings View -->
+            <section id="settings-view" class="view-screen">
+                <div class="section-header">
+                    <h3>إعدادات الاختبار والمثيرات</h3>
+                    <p>قم بتهيئة معاملات الاختبار العامة أو ربط المثيرات بأزرار الاستجابة.</p>
+                </div>
+
+                <div class="settings-tabs-container">
+                    <!-- Tab buttons -->
+                    <div class="settings-tab-headers">
+                        <button class="settings-tab-btn active" data-tab="general-settings">إعدادات عامة</button>
+                        <button class="settings-tab-btn" data-tab="stimuli-settings">إعدادات المثيرات</button>
+                        <button class="settings-tab-btn" data-tab="instructions-settings">إعدادات تعليمات الاختبار</button>
+                    </div>
+
+                    <!-- Tab Content 1: General Settings -->
+                    <div class="settings-tab-content active" id="general-settings">
+                        <form id="generalSettingsForm" class="settings-form general-settings-modern">
+                            <div class="settings-grid-layout">
+                                <div class="form-group-card">
+                                    <label for="cfgTrialsCount">عدد المحاولات الرسمية</label>
+                                    <input type="number" id="cfgTrialsCount" value="20" min="1" max="200">
+                                    <span class="help-text">هي المحاولات الوحيدة التي تدخل في حساب النتيجة الرسمية.</span>
+                                </div>
+                                <div class="form-group-card toggle-card">
+                                    <div class="toggle-container">
+                                        <label for="cfgPracticeEnabled">تفعيل المحاولات التدريبية</label>
+                                        <input type="checkbox" id="cfgPracticeEnabled" checked>
+                                    </div>
+                                    <span class="help-text">تُجرى قبل الاختبار الفعلي ولا تدخل في حساب النتائج أو الإحصاءات.</span>
+                                </div>
+                                <div class="form-group-card">
+                                    <label for="cfgPracticeTrialsCount">عدد المحاولات التدريبية</label>
+                                    <input type="number" id="cfgPracticeTrialsCount" value="3" min="0" max="100">
+                                    <span class="help-text">تُحفظ منفصلة ولا تدخل في المتوسط أو الدقة أو الانحراف المعياري.</span>
+                                </div>
+                                <div class="form-group-card toggle-card">
+                                    <div class="toggle-container">
+                                        <label for="cfgPracticeOpenEnded">تدريب مفتوح حتى قرار الفاحص</label>
+                                        <input type="checkbox" id="cfgPracticeOpenEnded">
+                                    </div>
+                                    <span class="help-text">يسمح باستمرار التدريب حتى يتأكد الفاحص من فهم الطالب للمهمة.</span>
+                                </div>
+                                <div class="form-group-card toggle-card">
+                                    <div class="toggle-container">
+                                        <label for="cfgPracticeFeedback">إظهار التغذية الراجعة أثناء التدريب</label>
+                                        <input type="checkbox" id="cfgPracticeFeedback" checked>
+                                    </div>
+                                    <span class="help-text">إظهار صحيح/خطأ وزمن الاستجابة في المحاولات التدريبية.</span>
+                                </div>
+                                <div class="form-group-card toggle-card">
+                                    <div class="toggle-container">
+                                        <label for="cfgTestFeedback">إظهار التغذية الراجعة أثناء الاختبار الفعلي</label>
+                                        <input type="checkbox" id="cfgTestFeedback">
+                                    </div>
+                                    <span class="help-text">يفضل إيقافها افتراضياً في القياس الفعلي لتقليل أثر التعلم بين المحاولات.</span>
+                                </div>
+                                <div class="form-group-card">
+                                    <label for="cfgMinLatency">الزمن الأدنى لانتظار المثير (ثانية)</label>
+                                    <input type="number" id="cfgMinLatency" value="0.5" step="0.1" min="0.1">
+                                    <span class="help-text">أقل وقت انتظار عشوائي قبل ظهور المثير.</span>
+                                </div>
+                                <div class="form-group-card">
+                                    <label for="cfgMaxLatency">الزمن الأقصي لانتظار المثير (ثانية)</label>
+                                    <input type="number" id="cfgMaxLatency" value="5.0" step="0.1" min="0.5">
+                                    <span class="help-text">أقصى وقت انتظار عشوائي قبل ظهور المثير.</span>
+                                </div>
+                                <div class="form-group-card">
+                                    <label for="cfgStimulusDuration">مدة ظهور المثير (ثانية)</label>
+                                    <input type="number" id="cfgStimulusDuration" value="1.0" step="0.1" min="0.1">
+                                    <span class="help-text">الوقت الذي يظل فيه المثير معروضاً على الشاشة.</span>
+                                </div>
+                                <div class="form-group-card">
+                                    <label for="cfgInterStimulus">الفاصل الزمني بين المثيرات (ثانية)</label>
+                                    <input type="number" id="cfgInterStimulus" value="1.0" step="0.1" min="0.1">
+                                    <span class="help-text">الزمن الفاصل بعد الاستجابة وقبل الانتقال للمحاولة التالية.</span>
+                                </div>
+                                <div class="form-group-card">
+                                    <label for="cfgMaxResponseTime">الحد الأقصى لزمن الاستجابة (ثانية)</label>
+                                    <input type="number" id="cfgMaxResponseTime" value="3.0" step="0.1" min="0.5">
+                                    <span class="help-text">الوقت الكلي المتاح للاستجابة قبل احتساب المحاولة كاستجابة فائتة.</span>
+                                </div>
+                                <div class="form-group-card toggle-card">
+                                    <div class="toggle-container">
+                                        <label for="cfgRandomOrder">ترتيب عشوائي للمثيرات</label>
+                                        <input type="checkbox" id="cfgRandomOrder" checked>
+                                    </div>
+                                    <span class="help-text">خلط ترتيب المثيرات عشوائياً لتقليل قدرة الطالب على توقع المثير التالي.</span>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="primary-btn" id="saveGeneralSettingsBtn">حفظ الإعدادات العامة</button>
+                                <button type="button" class="secondary-btn" id="resetGeneralSettingsBtn">استعادة الافتراضي</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Tab Content 2: Stimuli Settings -->
+                    <div class="settings-tab-content" id="stimuli-settings">
+                        <div class="form-group" style="max-width: 350px; margin-bottom: 20px;">
+                            <label for="cfgStimuliTestType">اختر نوع الاختبار للتعديل:</label>
+                            <select id="cfgStimuliTestType" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; width: 100%;">
+                                <option value="visualSimple">البصري البسيط</option>
+                                <option value="visualDiscriminative">البصري التمييزي</option>
+                                <option value="visualChoice">البصري الاختياري</option>
+                                <option value="auditorySimple">السمعي البسيط</option>
+                                <option value="auditoryDiscriminative">السمعي التمييزي</option>
+                                <option value="auditoryChoice">السمعي الاختياري</option>
+                            </select>
+                        </div>
+                        
+                        <div class="stimuli-settings-layout">
+                            <!-- Target Stimulus Selector -->
+                            <div class="stimuli-box">
+                                <h5>المثيرات المستهدفة</h5>
+                                <div class="stimuli-list-container" id="targetStimuliList">
+                                    <!-- Rendered dynamically in JS -->
+                                </div>
+                                <button type="button" class="secondary-btn" id="addTargetStimulusBtn">+ إضافة مثير مستهدف</button>
+                            </div>
+
+                            <!-- Distractor Stimulus Selector -->
+                            <div class="stimuli-box" id="distractorStimuliBox">
+                                <h5>المثيرات المشتتة</h5>
+                                <div class="stimuli-list-container" id="distractorStimuliList">
+                                    <!-- Rendered dynamically in JS -->
+                                </div>
+                                <button type="button" class="secondary-btn" id="addDistractorStimulusBtn">+ إضافة مثير خاطئ (مشتت)</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Stimuli Mapping Table -->
+                        <div style="margin-top: 24px;">
+                            <h5 style="margin-bottom: 12px; font-weight: 800;">جدول توزيع ومطابقة مفاتيح الاستجابة للمثيرات</h5>
+                            <table class="stimuli-mapping-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                <thead>
+                                    <tr style="background-color: var(--bg-input);">
+                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">المثير</th>
+                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">نوع المثير</th>
+                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">مفتاح الاستجابة المتوقع</th>
+                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">الحالة</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stimuliMappingTableBody">
+                                    <!-- Rendered dynamically in JS -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="form-actions" style="margin-top: 20px;">
+                            <button type="button" class="primary-btn" id="saveStimuliSettingsBtn">حفظ إعدادات المثيرات</button>
+                            <button type="button" class="secondary-btn" id="resetStimuliSettingsBtn">استعادة الافتراضي</button>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content 3: Instructions Settings -->
+                    <div class="settings-tab-content" id="instructions-settings">
+                        <form id="instructionsSettingsForm" class="settings-form">
+                            <div class="settings-grid-layout">
+                                <div class="form-group-card full-width" style="grid-column: span 2;">
+                                    <label for="insVisualSimple">تعليمات البصري البسيط</label>
+                                    <textarea id="insVisualSimple" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; resize: vertical;"></textarea>
+                                </div>
+                                <div class="form-group-card full-width" style="grid-column: span 2;">
+                                    <label for="insVisualDiscriminative">تعليمات البصري التمييزي</label>
+                                    <textarea id="insVisualDiscriminative" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; resize: vertical;"></textarea>
+                                </div>
+                                <div class="form-group-card full-width" style="grid-column: span 2;">
+                                    <label for="insVisualChoice">تعليمات البصري الاختياري</label>
+                                    <textarea id="insVisualChoice" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; resize: vertical;"></textarea>
+                                </div>
+                                <div class="form-group-card full-width" style="grid-column: span 2;">
+                                    <label for="insAuditorySimple">تعليمات السمعي البسيط</label>
+                                    <textarea id="insAuditorySimple" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; resize: vertical;"></textarea>
+                                </div>
+                                <div class="form-group-card full-width" style="grid-column: span 2;">
+                                    <label for="insAuditoryDiscriminative">تعليمات السمعي التمييزي</label>
+                                    <textarea id="insAuditoryDiscriminative" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; resize: vertical;"></textarea>
+                                </div>
+                                <div class="form-group-card full-width" style="grid-column: span 2;">
+                                    <label for="insAuditoryChoice">تعليمات السمعي الاختياري</label>
+                                    <textarea id="insAuditoryChoice" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; resize: vertical;"></textarea>
+                                </div>
+                            </div>
+                            <div class="form-actions" style="margin-top: 20px;">
+                                <button type="button" class="primary-btn" id="saveInstructionsSettingsBtn">حفظ تعليمات الاختبار</button>
+                                <button type="button" class="secondary-btn" id="resetInstructionsSettingsBtn">استعادة الافتراضي</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Screen 7: Results and Reports View -->
+            <section id="results-view" class="view-screen">
+                <div class="section-header no-print">
+                    <h3>النتائج والتقارير التحليلية</h3>
+                    <p>استعرض تقرير الجلسة الحالية والنتائج الفردية، أو قارن النتائج على المستوى الجماعي.</p>
+                </div>
+
+                <!-- Redesigned Tab Headers -->
+                <div class="results-tab-headers no-print" role="tablist" aria-label="نوع التقرير">
+                    <button class="results-tab-btn active" id="btnIndividualTab" data-tab="individual-results" role="tab" aria-selected="true">
+                        <span class="results-tab-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                        </span>
+                        <span class="results-tab-copy"><strong>النتائج الفردية</strong><small>تقارير الطالب وجلساته</small></span>
+                    </button>
+                    <button class="results-tab-btn" id="btnGroupTab" data-tab="group-results" role="tab" aria-selected="false">
+                        <span class="results-tab-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        </span>
+                        <span class="results-tab-copy"><strong>النتائج الجماعية</strong><small>ملخص وتحليل جميع الحالات</small></span>
+                    </button>
+                </div>
+
+                <!-- Tab 1: Individual Results Container -->
+                <div class="results-tab-container active-tab" id="individual-results">
+                    <!-- Student, session and export controls -->
+                    <div class="session-selector-bar results-selector-bar no-print">
+                        <div class="selector-field results-selector-field">
+                            <label for="historyStudentSelect">اختر الطالب:</label>
+                            <select id="historyStudentSelect">
+                                <option value="">-- اختر طالبًا لعرض جميع نتائجه --</option>
+                            </select>
+                        </div>
+                        <div class="selector-field results-selector-field">
+                            <label for="historySessionSelect">اختر الجلسة:</label>
+                            <select id="historySessionSelect">
+                                <option value="">-- اختر جلسة لعرض تقريرها --</option>
+                            </select>
+                        </div>
+                        <div class="report-actions results-actions">
+                            <button class="secondary-btn excel-btn" id="exportCurrentSessionExcelBtn">Excel الجلسة</button>
+                            <button class="secondary-btn excel-btn" id="exportStudentExcelBtn">Excel الطالب</button>
+                            <button class="secondary-btn excel-btn" id="exportAllExcelBtn">Excel الجميع</button>
+                            <button class="secondary-btn" id="shareReportBtn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                مشاركة
+                            </button>
+                            <button class="secondary-btn" id="printReportBtn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                طباعة
+                            </button>
+                            <button class="primary-btn" id="pdfReportBtn" style="background-color: #6c5ce7;">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                تصدير PDF
+                            </button>
+                            <button class="danger-btn" id="deleteSessionBtn" style="background-color: var(--color-red); display: none;">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                حذف الجلسة
+                            </button>
+                            <button class="danger-btn" id="deleteStudentBtn" style="background-color: var(--color-red); display: none;">حذف الطالب وكل جلساته</button>
+                        </div>
+                    </div>
+
+                    <!-- All tests for the selected student -->
+                    <section class="student-tests-overview no-print" id="studentTestsOverview" style="display: none;">
+                        <div class="student-overview-header">
+                            <div>
+                                <h4 id="studentOverviewTitle">ملخص اختبارات الطالب</h4>
+                                <p id="studentOverviewMeta">تظهر أحدث نتيجة وعدد مرات التطبيق لكل اختبار.</p>
+                            </div>
+                            <span class="student-session-count" id="studentOverviewSessionCount">0 جلسة</span>
+                        </div>
+                        <div class="student-test-results-grid" id="studentTestResultsGrid"></div>
+                    </section>
+
+                    <!-- Placeholder -->
+                    <div class="no-session-placeholder" id="noSessionPlaceholder">
+                        <svg viewBox="0 0 24 24" width="64" height="64" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        <h5>اختر طالبًا لعرض جميع اختباراته</h5>
+                        <p>بعد اختيار الطالب سيظهر ملخص الاختبارات الستة وسجل جميع الجلسات، ويمكن فتح أي جلسة لعرض تقريرها التفصيلي.</p>
+                    </div>
+
+                    <!-- Report Document Area -->
+                    <div class="report-document" id="reportDocumentArea" style="display: none;">
+                        <!-- Print header -->
+                        <div class="report-print-header">
+                            <div class="print-logo-box">
+                                <div>
+                                    <h3>تقرير مقياس زمن الرجع الحسي الإلكتروني لذوي الإعاقات العقلية</h3>
+                                    <span class="report-date-print">تاريخ صدور التقرير: <span id="lblPrintDate">--</span></span>
+                                </div>
+                            </div>
+                            <div class="print-sub-org">
+                                <strong id="lblPrintSpecialist">المختص: --</strong>
+                                <span id="lblPrintCenter">المؤسسة: --</span>
+                            </div>
+                        </div>
+
+                        <!-- Redesigned Patient Info Card -->
+                        <div class="patient-info-card" style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm); margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+                            <div class="patient-profile" style="display: flex; align-items: center; gap: 15px;">
+                                <div class="patient-avatar" style="font-size: 40px; background: rgba(108, 92, 231, 0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">👦</div>
+                                <div class="patient-details">
+                                    <span style="font-size: 12px; color: var(--text-muted); display: block;">اسم الطالب</span>
+                                    <strong id="lblReportStudentName" style="font-size: 18px; color: var(--text-main);">--</strong>
+                                </div>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">العمر</span>
+                                <strong id="lblReportStudentAge" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">الجنس</span>
+                                <strong id="lblReportStudentGender" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">الفئة</span>
+                                <strong id="lblReportStudentCategory" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">نسبة الذكاء</span>
+                                <strong id="lblReportStudentIQ" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">نوع الاختبار</span>
+                                <strong id="lblReportTestType" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">رقم الجلسة</span>
+                                <strong id="lblReportSessionNum" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">تاريخ التطبيق</span>
+                                <strong id="lblReportDateTime" style="font-size: 14px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">المدة الرسمية</span>
+                                <strong id="lblReportDuration" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">طريقة الاستجابة</span>
+                                <strong id="lblReportInputMethod" style="font-size: 14px; color: var(--text-main);">--</strong>
+                            </div>
+                        </div>
+
+                        <!-- Expanded Individual Statistics -->
+                        <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                            <div class="metric-card"><div class="card-title">المحاولات الرسمية</div><div class="card-val" id="lblValTotalTrials">0</div><div class="card-unit">محاولة محتسبة</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #74b9ff;"><div class="card-title">المحاولات التدريبية</div><div class="card-val" id="lblValPracticeTrials">0</div><div class="card-unit">غير محتسبة</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #2ed573;"><div class="card-title">الصحيح الكلي</div><div class="card-val" id="lblValCorrect">0</div><div class="card-percent" id="lblValCorrectPct">(0%)</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #55efc4;"><div class="card-title">التجاهل الصحيح</div><div class="card-val" id="lblValCorrectRejection">0</div><div class="card-unit">مشتتات تم تجاهلها</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #1e90ff;"><div class="card-title">اختيار خاطئ</div><div class="card-val" id="lblValWrong">0</div><div class="card-percent" id="lblValWrongPct">(0%)</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #9b59b6;"><div class="card-title">الاستجابات الفائتة</div><div class="card-val" id="lblValMiss">0</div><div class="card-percent" id="lblValMissPct">(0%)</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #e74c3c;"><div class="card-title">الضغط الخاطئ على المشتت</div><div class="card-val" id="lblValFalseAlarm">0</div><div class="card-percent" id="lblValFalseAlarmPct">(0%)</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #e17055;"><div class="card-title">استجابة مبكرة</div><div class="card-val" id="lblValEarly">0</div><div class="card-percent" id="lblValEarlyPct">(0%)</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #00b894;"><div class="card-title">الدقة</div><div class="card-val" id="lblValAccuracy">0%</div><div class="card-unit">من الرسمية فقط</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #d63031;"><div class="card-title">نسبة الخطأ</div><div class="card-val" id="lblValErrorRate">0%</div><div class="card-unit">من الرسمية فقط</div></div>
+                            <div class="metric-card" style="border-top: 4px solid var(--color-primary);"><div class="card-title">متوسط زمن الاستجابة</div><div class="card-val" id="lblValAvgTime">0</div><div class="card-unit">مللي ثانية - الصحيحة فقط</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #00b894;"><div class="card-title">وسيط زمن الاستجابة</div><div class="card-val" id="lblValMedianTime">0</div><div class="card-unit">مللي ثانية</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #6c5ce7;"><div class="card-title">الانحراف المعياري</div><div class="card-val" id="lblValStdDev">0</div><div class="card-unit">مللي ثانية</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #fd79a8;"><div class="card-title">أسرع استجابة</div><div class="card-val" id="lblValFastest">0</div><div class="card-unit">مللي ثانية</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #ffa500;"><div class="card-title">أبطأ استجابة</div><div class="card-val" id="lblValSlowest">0</div><div class="card-unit">مللي ثانية</div></div>
+                        </div>
+
+                        <!-- Charts Layout Grid -->
+                        <div class="report-charts-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; align-items: stretch;">
+                            <!-- Response timeline chart -->
+                            <div class="report-chart-box">
+                                <h5>مخطط متوسط زمن الاستجابة</h5>
+                                <div class="chart-container" style="height: 180px;">
+                                    <canvas id="rptResponseTimeline"></canvas>
+                                </div>
+                            </div>
+                            <!-- Accuracy Donut chart -->
+                            <div class="report-chart-box">
+                                <h5>توزيع النتائج الإجمالية</h5>
+                                <div class="chart-container" style="height: 180px;">
+                                    <canvas id="rptAccuracyDonut"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stimulus comparison (Choice tests) -->
+                        <div class="report-chart-box" id="rptStimulusBarContainer" style="margin-bottom: 25px; display: none;">
+                                <h5>متوسط الاستجابة لكل مثير (مللي ثانية)</h5>
+                            <div class="chart-container" style="height: 200px;">
+                                <canvas id="rptStimulusBar"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Trials Detail Table -->
+                        <div class="report-table-section" style="margin-bottom: 25px;">
+                            <h4>تفاصيل المحاولات الرسمية المحتسبة</h4>
+                            <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                                <table class="report-details-table">
+                                    <thead>
+                                        <tr>
+                                            <th>رقم المحاولة</th>
+                                            <th>المثير</th>
+                                            <th>الاستجابة المطلوبة</th>
+                                            <th>الاستجابة الفعلية</th>
+                                            <th>النتيجة</th>
+                                            <th>زمن الاستجابة (مللي ثانية)</th>
+                                            <th>التاريخ والوقت</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reportDetailsTableBody">
+                                        <!-- Rendered dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="report-table-section" id="practiceDetailsSection" style="margin-bottom: 25px; display: none;">
+                            <h4>تفاصيل المحاولات التدريبية غير المحتسبة</h4>
+                            <p class="report-section-note">تظهر للمراجعة فقط ولا تدخل في أي نتيجة رسمية.</p>
+                            <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+                                <table class="report-details-table">
+                                    <thead>
+                                        <tr>
+                                            <th>رقم التدريب</th>
+                                            <th>المثير</th>
+                                            <th>الاستجابة المطلوبة</th>
+                                            <th>الاستجابة الفعلية</th>
+                                            <th>النتيجة</th>
+                                            <th>زمن الاستجابة (مللي ثانية)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="practiceDetailsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Clinical Observations & Recommendations -->
+                        <div class="clinical-observations-section">
+                            <h4>ملاحظات الأخصائي وتوصيات الجلسة</h4>
+                            <textarea id="rptClinicalNotes" rows="4" placeholder="اكتب ملاحظاتك العيادية أو السلوكية عن أداء الطفل أثناء هذا الاختبار هنا..."></textarea>
+                            <div class="print-only-notes-display" id="rptPrintNotesDisplay"></div>
+                            
+                            <div class="signature-line">
+                                <span>توقيع الأخصائي الفاحص:</span>
+                                <div class="sig-space"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Group/Collective Results Container -->
+                <div class="results-tab-container" id="group-results" style="display: none;">
+                    <!-- Filter Controls Bar -->
+                    <div class="session-selector-bar no-print" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) auto; gap: 15px; align-items: end; margin-bottom: 20px; background: var(--bg-card); padding: 15px; border-radius: 10px; box-shadow: var(--shadow-sm);">
+                        <div class="selector-field">
+                            <label for="cfgGroupDateFrom" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">تاريخ البداية:</label>
+                            <input type="date" id="cfgGroupDateFrom" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                        </div>
+                        <div class="selector-field">
+                            <label for="cfgGroupDateTo" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">تاريخ النهاية:</label>
+                            <input type="date" id="cfgGroupDateTo" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                        </div>
+                        <div class="selector-field">
+                            <label for="cfgGroupGender" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">الجنس:</label>
+                            <select id="cfgGroupGender" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                                <option value="">جميع الطلاب</option>
+                                <option value="ذكر">ذكور</option>
+                                <option value="أنثى">إناث</option>
+                            </select>
+                        </div>
+                        <div class="selector-field">
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">العمر:</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="number" id="cfgGroupAgeFrom" min="1" max="100" placeholder="من" aria-label="العمر من" style="width: 50%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                                <input type="number" id="cfgGroupAgeTo" min="1" max="100" placeholder="إلى" aria-label="العمر إلى" style="width: 50%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                            </div>
+                        </div>
+                        <div class="selector-field">
+                            <label for="cfgGroupTestType" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">نوع الاختبار:</label>
+                            <select id="cfgGroupTestType" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                                <option value="">جميع الاختبارات</option>
+                                <option value="visual-simple">البصري البسيط</option>
+                                <option value="visual-discriminative">البصري التمييزي</option>
+                                <option value="visual-choice">البصري الاختياري</option>
+                                <option value="auditory-simple">السمعي البسيط</option>
+                                <option value="auditory-discriminative">السمعي التمييزي</option>
+                                <option value="auditory-choice">السمعي الاختياري</option>
+                            </select>
+                        </div>
+                        <div class="selector-field">
+                            <label for="cfgGroupCategory" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">الفئة:</label>
+                            <select id="cfgGroupCategory" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                                    <option value="">جميع الفئات</option>
+                                    <option value="إعاقة عقلية">إعاقة عقلية</option>
+                                    <option value="متلازمة داون">متلازمة داون</option>
+                                    <option value="اضطراب طيف التوحد">اضطراب طيف التوحد</option>
+                                    <option value="الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد">الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد</option>
+                                    <option value="اضطراب فرط الحركة وتشتت الانتباه">اضطراب فرط الحركة وتشتت الانتباه</option>
+                                    <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
+                                    <option value="طبيعي">طبيعي</option>
+                                </select>
+                        </div>
+                        <div class="selector-field">
+                            <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">نسبة الذكاء:</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="number" id="cfgGroupIQFrom" min="1" max="200" placeholder="من" aria-label="نسبة الذكاء من" style="width: 50%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                                <input type="number" id="cfgGroupIQTo" min="1" max="200" placeholder="إلى" aria-label="نسبة الذكاء إلى" style="width: 50%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                            </div>
+                        </div>
+                        <div class="report-actions" style="display: flex; gap: 8px;">
+                            <button class="secondary-btn excel-btn" id="exportGroupExcelBtn">
+                                تصدير Excel
+                            </button>
+                            <button class="secondary-btn" id="printGroupReportBtn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                طباعة
+                            </button>
+                            <button class="primary-btn" id="pdfGroupReportBtn" style="background-color: #6c5ce7;">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                تصدير PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Group Report Document Area (Printable) -->
+                    <div class="group-report-document" id="groupReportDocumentArea">
+                        <!-- Group Print header -->
+                        <div class="report-print-header">
+                            <div class="print-logo-box">
+                                <div>
+                                    <h3>التقرير المجمع لمقياس زمن الرجع الحسي الإلكتروني</h3>
+                                    <span class="report-date-print">تاريخ التقرير: <span class="lblGroupPrintDate">--</span></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Expanded Group Statistics -->
+                        <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                            <div class="metric-card"><div class="card-title">متوسط العمر</div><div class="card-val" id="lblGroupAvgAge">—</div><div class="card-unit">سنة</div></div>
+                            <div class="metric-card"><div class="card-title">متوسط نسبة الذكاء</div><div class="card-val" id="lblGroupAvgIQ">—</div><div class="card-unit">درجة</div></div>
+                            <div class="metric-card"><div class="card-title">إجمالي المحاولات الرسمية</div><div class="card-val" id="lblGroupTotalTrials">0</div><div class="card-unit">محاولة محتسبة</div></div>
+                            <div class="metric-card"><div class="card-title">إجمالي التدريب</div><div class="card-val" id="lblGroupPracticeTrials">0</div><div class="card-unit">غير محتسب</div></div>
+                            <div class="metric-card"><div class="card-title">متوسط زمن الاستجابة</div><div class="card-val" id="lblGroupAvgRT">0</div><div class="card-unit">مللي ثانية</div></div>
+                            <div class="metric-card"><div class="card-title">وسيط زمن الاستجابة</div><div class="card-val" id="lblGroupMedianRT">0</div><div class="card-unit">مللي ثانية</div></div>
+                            <div class="metric-card"><div class="card-title">الانحراف المعياري</div><div class="card-val" id="lblGroupStdDev">0</div><div class="card-unit">مللي ثانية</div></div>
+                            <div class="metric-card"><div class="card-title">متوسط الدقة</div><div class="card-val" id="lblGroupAvgAccuracy">0%</div><div class="card-unit">صحيحة</div></div>
+                            <div class="metric-card"><div class="card-title">نسبة الخطأ</div><div class="card-val" id="lblGroupErrorPct">0%</div><div class="card-unit">خطأ</div></div>
+                            <div class="metric-card"><div class="card-title">نسبة الاستجابات الفائتة</div><div class="card-val" id="lblGroupMissPct">0%</div><div class="card-unit">عدم استجابة</div></div>
+                            <div class="metric-card"><div class="card-title">التجاهل الصحيح</div><div class="card-val" id="lblGroupCorrectRejections">0</div><div class="card-unit">محاولة</div></div>
+                            <div class="metric-card"><div class="card-title">الضغط الخاطئ على المشتت</div><div class="card-val" id="lblGroupFalseAlarms">0</div><div class="card-unit">محاولة</div></div>
+                            <div class="metric-card"><div class="card-title">الاستجابات المبكرة</div><div class="card-val" id="lblGroupEarlyResponses">0</div><div class="card-unit">محاولة</div></div>
+                        </div>
+
+                        <div class="report-table-section" style="margin-bottom: 25px;">
+                            <h4>الملخص الإحصائي حسب النوع الرئيسي والفرعي</h4>
+                            <div class="table-container">
+                                <table class="report-details-table" id="groupSummaryTable">
+                                    <thead>
+                                        <tr>
+                                            <th>التصنيف</th>
+                                            <th>نوع الاختبار</th>
+                                            <th>الرسمية</th>
+                                            <th>التدريب</th>
+                                            <th>متوسط زمن الاستجابة</th>
+                                            <th>وسيط زمن الاستجابة</th>
+                                            <th>الانحراف المعياري</th>
+                                            <th>الدقة %</th>
+                                            <th>الخطأ %</th>
+                                            <th>الاستجابات الفائتة %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="groupSummaryTableBody">
+                                        <!-- Rendered dynamically in app.js: visual/auditory totals + six subtests -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="report-table-section" style="margin-bottom: 25px;">
+                            <h4>إجمالي المحاولات الرسمية</h4>
+                            <div class="table-container">
+                                <table class="report-details-table">
+                                    <thead><tr><th>النطاق</th><th>نوع الاختبار</th><th>مجموع المحاولات</th></tr></thead>
+                                    <tbody id="groupTrialsTotalsBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="report-table-section" style="margin-bottom: 25px;">
+                            <h4>زمن الاستجابة لكل محاولة ولكل طالب</h4>
+                            <div class="table-container group-trials-table-container">
+                                <table class="report-details-table">
+                                    <thead>
+                                        <tr>
+                                            <th>اسم الطالب</th><th>الفئة</th><th>القسم</th><th>نوع الاختبار</th>
+                                            <th>رقم المحاولة</th><th>المثير</th><th>النتيجة</th><th>زمن الاستجابة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="groupTrialDetailsBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 3 Bar charts at the bottom -->
+                        <div class="group-charts-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                            <div class="report-chart-box">
+                                <h5>متوسط زمن الاستجابة لكل اختبار (مللي ثانية)</h5>
+                                <div class="chart-container" style="height: 180px;">
+                                    <canvas id="grpAvgRTChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="report-chart-box">
+                                <h5>أسرع زمن استجابة لكل اختبار (مللي ثانية)</h5>
+                                <div class="chart-container" style="height: 180px;">
+                                    <canvas id="grpFastestRTChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="report-chart-box">
+                                <h5>أبطأ زمن استجابة لكل اختبار (مللي ثانية)</h5>
+                                <div class="chart-container" style="height: 180px;">
+                                    <canvas id="grpSlowestRTChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Screen 8: Help & Support View -->
+            <section id="support-view" class="view-screen">
+                <div class="section-header">
+                    <h3>المساعدة والدعم الفني</h3>
+                    <p>دليل الأسئلة الشائعة وحل المشكلات لتشغيل منصة اختبار الرجع الحسي.</p>
+                </div>
+
+                <div class="faq-container">
+                    <div class="faq-item">
+                        <h5>كيف يتم حساب زمن الاستجابة؟</h5>
+                        <p>يتم احتساب الزمن بالملي ثانية بدقة متناهية من اللحظة التي يظهر فيها المثير البصري على الشاشة أو يصدر الصوت من النظام، وحتى اللحظة التي يضغط فيها الطفل على زر لوحة المفاتيح أو يلمس الشاشة. نوصي باستخدام حواسيب ذات استجابة سريعة للوحة المفاتيح.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h5>هل أحتاج لاتصال بالإنترنت لتشغيل التطبيق؟</h5>
+                        <p>يعمل الاختبار ويُحفظ مؤقتًا على الجهاز دون اتصال، لكن يلزم الإنترنت لمزامنة النتيجة سحابيًا وإظهارها على باقي الأجهزة. وإذا تعذر تحميل الأصوات الواقعية يستخدم التطبيق أصواتًا بديلة مولدة محليًا حتى لا تتوقف الجلسة.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h5>ما العمل إذا لم يخرج الصوت أثناء الاختبار السمعي؟</h5>
+                        <p>1. تأكد من تشغيل صوت الكمبيوتر ورفع مستوى الصوت. 2. تأكد من إعطاء متصفحك إذن تشغيل الصوت (تقوم بعض المتصفحات بكتم الصوت تلقائياً حتى يقوم المستخدم بالتفاعل الأول مع الصفحة بالضغط على أي زر). 3. تأكد من ارتداء الطفل لسماعة الرأس بشكل صحيح.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h5>كيف يمكنني حفظ تقرير PDF؟</h5>
+                        <p>اضغط على زر "تصدير PDF" أو "طباعة" في صفحة النتائج. ستفتح نافذة طباعة المتصفح الافتراضية؛ في خيار "الطابعة" (Printer), اختر "حفظ بتنسيق PDF" (Save as PDF) ثم حدد مكان حفظ الملف على جهازك.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h5>كيف أُصدر النتائج إلى Excel؟</h5>
+                        <p>من النتائج الفردية اختر الطالب أو الجلسة، ثم استخدم أحد الأزرار: Excel الجلسة، Excel الطالب، أو Excel الجميع. يتضمن الملف بيانات الحالات، ملخص النتائج، المحاولات الرسمية، والتدريب غير المحتسب في أوراق منفصلة.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Active Test Running Overlay Modal (Wizard Arena) -->
+    <div class="testing-overlay" id="testingOverlay">
+        <div class="testing-arena-box">
+            
+            <!-- Step 1: Instructions Arena -->
+            <div class="arena-step active" id="arenaStepInstructions">
+                <div class="instruction-shell">
+                    <div class="instruction-heading">
+                        <span class="instruction-badge">قبل البدء</span>
+                        <div>
+                            <h2 id="arenaTestTitle">الاختبار البصري البسيط</h2>
+                            <p>اقرأ التعليمات للطالب وتأكد من فهم طريقة الاستجابة.</p>
+                        </div>
+                    </div>
+                    <div class="arena-instruction-box" id="arenaInstructionText">
+                        <!-- Loaded dynamically from settings -->
+                    </div>
+                    <div class="arena-keymap-preview" id="arenaKeymapPreview">
+                        <!-- Key mapping visual guide if choice test -->
+                    </div>
+                    <div class="instruction-note">
+                        <span aria-hidden="true">✓</span>
+                        لن يبدأ حساب النتائج إلا بعد انتهاء التدريب وبدء المحاولات الرسمية.
+                    </div>
+                    <div class="arena-actions instruction-actions">
+                        <button class="primary-btn pulse-btn" id="arenaStartBtn">متابعة وبدء الجلسة</button>
+                        <button class="danger-btn" id="arenaCancelBtn">إلغاء وتراجع</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Preparation Countdown Screen -->
+            <div class="arena-step" id="arenaStepCountdown">
+                <div class="countdown-circle">
+                    <span id="countdownNumber">3</span>
+                </div>
+                <p class="countdown-text">الاستعداد لبدء الاختبار...</p>
+            </div>
+
+            <!-- Step 3, 4, 5, 6, 7: Active Stimulus Arena -->
+            <div class="arena-step" id="arenaStepPlay">
+                <div class="arena-trial-header">
+                    <div class="trial-counter-wrap">
+                        <span class="trial-stage-label" id="trialStageLabel">محاولة رسمية محتسبة</span>
+                        <div class="trial-counter">المحاولة: <span id="trialCurrentIndex">1</span> / <span id="trialTotalCount">20</span></div>
+                    </div>
+                    <div class="arena-current-test-name" id="arenaCurrentTestName">الاختبار البصري البسيط</div>
+                    <div class="trial-header-actions">
+                        <button class="secondary-btn" id="finishPracticeNowBtn" style="display: none;">إنهاء التدريب وبدء الرسمي</button>
+                        <button class="stop-test-btn" id="arenaStopMidTestBtn">إيقاف الاختبار</button>
+                    </div>
+                </div>
+
+                <!-- Stimulus Area -->
+                <div class="stimulus-display-box" id="stimulusDisplayBox">
+                    <div class="stimulus-placeholder" id="stimulusPlaceholder">
+                        <!-- Visually rendered shapes/colors or auditory headphone symbol -->
+                    </div>
+                </div>
+
+                <!-- Prompt Guide (Optional visual response buttons for touch screens) -->
+                <div class="on-screen-response-buttons" id="onScreenResponseButtons">
+                    <!-- Rendered dynamically for touch input/reference -->
+                </div>
+
+                <!-- Step 5: Trial Feedback message overlay -->
+                <div class="trial-feedback-overlay" id="trialFeedbackOverlay">
+                    <div class="feedback-badge" id="trialFeedbackBadge">
+                        <span class="feedback-icon" id="trialFeedbackIcon">✓</span>
+                        <span class="feedback-text" id="trialFeedbackText">إجابة صحيحة</span>
+                        <span class="feedback-latency" id="trialFeedbackLatency">0.85 ثانية</span>
+                    </div>
+                </div>
+
+                <!-- Step 7: Progress Dots bar -->
+                <div class="trial-progress-dots" id="trialProgressDots">
+                    <!-- Red/Green/Grey dots of previous runs -->
+                </div>
+            </div>
+
+            <!-- Step 8b: Between-Tests Transition Screen -->
+            <div class="arena-step" id="arenaStepNextTest">
+                <div class="next-test-box">
+                    <div class="next-test-check">✓</div>
+                    <h3 id="nextTestCompletedLabel">تم الانتهاء من الاختبار</h3>
+                    <p id="nextTestUpcomingLabel">الاختبار التالي:</p>
+                    <div class="next-test-name" id="nextTestNameLabel"></div>
+                    <div class="next-test-instruction" id="nextTestInstructionText"></div>
+                    <div class="arena-actions">
+                        <button class="primary-btn pulse-btn" id="proceedNextTestBtn">ابدأ الاختبار التالي</button>
+                        <button class="danger-btn" id="stopSessionBtn">إنهاء الجلسة</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 8: End of Test / Summary Card -->
+            <div class="arena-step" id="arenaStepSummary">
+                <div class="summary-award-box">
+                    <div class="trophy-icon">🏆</div>
+                    <h3>تم الانتهاء من الاختبار بنجاح!</h3>
+                </div>
+                <div class="summary-stats-box">
+                    <div class="sum-card"><span class="sum-lbl">المحاولات الرسمية</span><strong id="sumTotalTrials">20</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">التدريب غير المحتسب</span><strong id="sumPracticeTrials">0</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">النتائج الصحيحة</span><strong id="sumCorrectCount" class="green-text">0</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">الدقة</span><strong id="sumAccuracyPct">0%</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">نسبة الخطأ</span><strong id="sumErrorPct">0%</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">متوسط زمن الاستجابة</span><strong id="sumAvgLatency">0.00 ث</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">وسيط زمن الاستجابة</span><strong id="sumMedianLatency">0.00 ث</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">الانحراف المعياري</span><strong id="sumStdDev">0.00 ث</strong></div>
+                </div>
+                <div class="arena-actions">
+                    <button class="primary-btn" id="summaryViewReportBtn">عرض التقرير المفصل</button>
+                    <button class="secondary-btn" id="summaryRetryBtn">إعادة المحاولة</button>
+                    <button class="danger-btn" id="summaryCloseBtn">إغلاق</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+    // Lightweight UI compatibility for the newly added settings.
+    // The actual test engine/statistical calculations remain the responsibility of app.js.
+    document.addEventListener('DOMContentLoaded', function () {
+        const practiceEnabled = document.getElementById('cfgPracticeEnabled');
+        const practiceCount = document.getElementById('cfgPracticeTrialsCount');
+        const openEnded = document.getElementById('cfgPracticeOpenEnded');
+        function syncPracticeUI() {
+            if (!practiceEnabled || !practiceCount || !openEnded) return;
+            const enabled = practiceEnabled.checked;
+            practiceCount.disabled = !enabled || openEnded.checked;
+            openEnded.disabled = !enabled;
+        }
+        practiceEnabled?.addEventListener('change', syncPracticeUI);
+        openEnded?.addEventListener('change', syncPracticeUI);
+        syncPracticeUI();
+    });
+    </script>
+
+    <!-- Scripts -->
+    <!-- Firebase SDK (Compat Version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+    <script src="audio.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

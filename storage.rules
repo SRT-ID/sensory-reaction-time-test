@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /app/stimuli/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.size < 5 * 1024 * 1024;
+      allow delete: if signedIn();
+    }
+
+    match /users/{userId}/{allPaths=**} {
+      allow read, delete: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn() && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
