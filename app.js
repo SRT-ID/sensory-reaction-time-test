@@ -87,12 +87,15 @@ function handleFirebaseAuthError(error) {
     firebaseUser = null;
     if (firebaseReadyResolver) firebaseReadyResolver(null);
 
-    if (error?.code === 'auth/operation-not-allowed') {
-        const detailMsg = 'خاصية تسجيل الدخول المجهول (Anonymous Sign-in) غير مفعّلة في لوحة تحكم Firebase Console للمشروع.';
-        updateCloudStatusUI('error', '🔴 السحابة تطلب تفعيل', detailMsg);
-        showDataStatus(`المزامنة السحابية متوقفة: يرجى تفعيل "Anonymous Sign-in" من لوحة تحكم Firebase Console.`, 'warning');
+    const errCode = error?.code || '';
+    const errMessage = error?.message || '';
+
+    if (errCode === 'auth/operation-not-allowed' || errCode === 'auth/api-key-not-valid' || errMessage.includes('CONFIGURATION_NOT_FOUND')) {
+        const detailMsg = 'خدمة مصادقة المستخدمين غير مفعّلة سحابياً بعد. يرجى فتح قسم Authentication في Firebase Console والضغط على "البدء" (Get Started) وتفعيل "Anonymous".';
+        updateCloudStatusUI('error', '🔴 يرجى البدء وتفعيل Authentication في Firebase', detailMsg);
+        showDataStatus(`المزامنة السحابية متوقفة: افتح قسم Authentication في Firebase Console واضغط "البدء" ثم فعّل "Anonymous".`, 'warning');
     } else {
-        const detailMsg = error?.message || 'تعذر الاتصال بـ Firebase.';
+        const detailMsg = errMessage || 'تعذر الاتصال بـ Firebase.';
         updateCloudStatusUI('offline', '🟠 حفظ محلي على الجهاز', detailMsg);
     }
 }
