@@ -8,7 +8,7 @@
 // ==========================================================================
 // Firebase web configuration (the API key is a public client identifier; access is enforced by the security rules).
 const firebaseConfig = {
-    apiKey: "AIzaSyCgJbfMw7MnwgAxjYrZilw2onLiHsuD5jM",
+    apiKey: "AIzaSyCgJbFMw7MnwgAxjYrZilw2onLiHsuD5jM",
     authDomain: "srt-id-ba9e8.firebaseapp.com",
     projectId: "srt-id-ba9e8",
     storageBucket: "srt-id-ba9e8.firebasestorage.app",
@@ -22,80 +22,42 @@ let auth = null;
 let storage = null;
 let useFirebase = false;
 let firebaseUser = null;
-let firebaseReadyResolver = null;
-let firebaseReady = new Promise(resolve => { firebaseReadyResolver = resolve; });
+let firebaseAuthenticated = false;
+let firebaseReady = Promise.resolve(null);
 let syncTimer = null;
 let sharedRefreshTimer = null;
 let sharedRealtimeUnsubscribers = [];
 let pendingDeletions = { students: {}, sessions: {} };
 const sharedDeletedIds = { students: new Set(), sessions: new Set() };
-let lastCloudStatus = { status: 'connecting', title: 'جاري الاتصال بالسحابة...', detail: '' };
 
-function updateCloudStatusUI(status, title, detail = '') {
-    lastCloudStatus = { status, title, detail };
-    const badge = document.getElementById('cloudStatusBadge');
-    const textEl = document.getElementById('cloudStatusText');
-    if (!badge || !textEl) return;
-    badge.className = `cloud-status-badge ${status}`;
-    textEl.textContent = title;
-    badge.title = detail ? `${title}: ${detail} (انقر للتفاصيل)` : title;
-}
-
-if (firebaseConfig.apiKey && typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
+if (firebaseConfig.apiKey && typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') {
     try {
         if (!firebase.apps?.length) firebase.initializeApp(firebaseConfig);
         db = firebase.firestore();
-        auth = firebase.auth();
+        auth = typeof firebase.auth === 'function' ? firebase.auth() : null;
         storage = typeof firebase.storage === 'function' ? firebase.storage() : null;
-
-        // Offline persistence with multi-tab support fallback
-        if (typeof db.enableMultiTabIndexedDbPersistence === 'function') {
-            db.enableMultiTabIndexedDbPersistence().catch((err) => {
-                console.warn("Firestore multi-tab persistence warning:", err.code);
-            });
-        } else if (typeof db.enablePersistence === 'function') {
-            db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-                console.warn("Firestore persistence warning:", err.code);
-            });
-        }
-
-        // Automatic authentication listener for robust connection management
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                activateFirebaseUser(user);
-                updateCloudStatusUI('connected', '🟢 متصل بالسحابة (مزامنة فورية)', 'يتم حفظ المشاركين والنتائج تلقائياً وإتاحتها لجميع الأجهزة المقترنة.');
-                if (firebaseReadyResolver) firebaseReadyResolver(user);
-                syncFromFirestore();
-            } else {
-                updateCloudStatusUI('connecting', '🟡 جاري الاتصال بالسحابة...');
-                auth.signInAnonymously().catch(error => {
-                    handleFirebaseAuthError(error);
-                });
-            }
+        // The shared database is intentionally public. Authentication is optional and
+        // is used only to read records created by older private versions of the app.
+        useFirebase = true;
+        firebaseUser = { uid: 'public-shared-access' };
+        firebaseReady = Promise.resolve(firebaseUser);
+        // Enable offline persistence
+        db.enablePersistence().catch((err) => {
+            console.warn("Firestore persistence failed:", err.code);
         });
+        if (auth) {
+            firebaseReady = auth.signInAnonymously()
+                .then(credential => {
+                    firebaseAuthenticated = true;
+                    return activateFirebaseUser(credential.user);
+                })
+                .catch(error => {
+                    console.warn("Anonymous Firebase authentication is unavailable; public cloud access will be used.", error);
+                    return firebaseUser;
+                });
+        }
     } catch (e) {
         console.error("Firebase initialization failed:", e);
-        updateCloudStatusUI('error', '🔴 خطأ تهيئة السحابة', e.message);
-    }
-} else {
-    updateCloudStatusUI('offline', '🟠 حفظ محلي فقط', 'عنصر التحكم في مكتبة Firebase غير متوفر. يتم الحفظ على جهازك فقط.');
-}
-
-function handleFirebaseAuthError(error) {
-    console.error("Firebase authentication failed:", error);
-    useFirebase = false;
-    firebaseUser = null;
-    if (firebaseReadyResolver) firebaseReadyResolver(null);
-
-    const errCode = error?.code || '';
-    const errMessage = error?.message || '';
-
-    if (errCode === 'auth/operation-not-allowed' || errCode === 'auth/api-key-not-valid' || errMessage.includes('CONFIGURATION_NOT_FOUND')) {
-        const detailMsg = 'خدمة مصادقة المستخدمين تحتاج تفعيل زر (Get Started) ثم تفعيل Anonymous في قسم Authentication بـ Firebase Console.';
-        updateCloudStatusUI('offline', '🟠 حفظ محلي (انقر للتفعيل السحابي)', detailMsg);
-    } else {
-        const detailMsg = errMessage || 'تعذر الاتصال بـ Firebase.';
-        updateCloudStatusUI('offline', '🟠 حفظ محلي على الجهاز', detailMsg);
     }
 }
 
@@ -119,23 +81,30 @@ const state = {
         general: {
             trialsCount: 20,
             practiceEnabled: true,
-            practiceTrialsCount: 3,
+            practiceTrialsCount: 4,
             practiceOpenEnded: false,
             practiceFeedback: true,
             testFeedback: false,
-            minLatency: 0.5,
-            maxLatency: 3.0,
-            stimulusDuration: 1.0,
-            interStimulus: 1.0,
-            maxResponseTime: 3.0,
-            randomOrder: true
+            minLatencyMs: 500,
+            maxLatencyMs: 1500,
+            interStimulusMs: 1000
+        },
+        responses: {
+            'إعاقة عقلية': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
+            'متلازمة داون': { correct: { from: 200, to: 3500 }, late: { from: 3501, to: 4000 }, missed: { from: 4001, to: 4500 } },
+            'اضطراب طيف التوحد': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
+            'الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
+            'اضطراب فرط الحركة وتشتت الانتباه ADHD': { correct: { from: 200, to: 2000 }, late: { from: 2001, to: 2500 }, missed: { from: 2501, to: 3000 } },
+            'طبيعي': { correct: { from: 200, to: 1500 }, late: { from: 1501, to: 2000 }, missed: { from: 2001, to: 2500 } },
+            'مزدوج الإعاقة': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
+            'غير محدد': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } }
         },
         instructions: {
             'visual-simple': "ستظهر دائرة خضراء في وسط الشاشة.<br>عند ظهور الدائرة اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تظهر الدائرة.",
             'visual-discriminative': "ستظهر ألوان مختلفة في وسط الشاشة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند ظهور الدائرة الخضراء.<br>تجاهل الألوان الأخرى (الحمراء والزرقاء والصفراء) ولا تضغط على أي زر.",
             'visual-choice': "ستظهر مثيرات بصرية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للمثير بأسرع ما يمكن.",
-            'auditory-simple': "ستسمع صوتاً واحداً (صفارة).<br>عند سماع الصوت اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تسمع الصوت.",
-            'auditory-discriminative': "ستسمع أصواتاً مختلفة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند سماع الصوت الصحيح (الصفارة).<br>تجاهل باقي الأصوات (جرس - انفجار) ولا تضغط على أي زر.",
+            'auditory-simple': "ستسمع صوت كلب حقيقيًا.<br>عند سماع الصوت اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تسمع الصوت.",
+            'auditory-discriminative': "ستسمع أصوات حيوانات حقيقية مختلفة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة والعصفور ولا تضغط على أي زر.",
             'auditory-choice': "ستسمع مثيرات سمعية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للصوت بأسرع ما يمكن."
         },
         stimuli: {
@@ -160,21 +129,21 @@ const state = {
                 distractors: []
             },
             auditorySimple: {
-                targets: [{ id: 'buzzer', type: 'sound', val: 'buzzer', label: 'صفارة' }],
+                targets: [{ id: 'dog', type: 'sound', val: 'dog', label: 'كلب' }],
                 distractors: []
             },
             auditoryDiscriminative: {
-                targets: [{ id: 'buzzer', type: 'sound', val: 'buzzer', label: 'صفارة' }],
+                targets: [{ id: 'dog', type: 'sound', val: 'dog', label: 'كلب' }],
                 distractors: [
-                    { id: 'bell', type: 'sound', val: 'bell', label: 'جرس' },
-                    { id: 'explosion', type: 'sound', val: 'explosion', label: 'انفجار' }
+                    { id: 'cat', type: 'sound', val: 'cat', label: 'قطة' },
+                    { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور' }
                 ]
             },
             auditoryChoice: {
                 targets: [
-                    { id: 'buzzer', type: 'sound', val: 'buzzer', label: 'صفارة', key: 'KeyA', keyLabel: 'A' },
-                    { id: 'bell', type: 'sound', val: 'bell', label: 'جرس', key: 'KeyB', keyLabel: 'B' },
-                    { id: 'alert', type: 'sound', val: 'alert', label: 'تنبيه', key: 'KeyC', keyLabel: 'C' }
+                    { id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'KeyA', keyLabel: 'A' },
+                    { id: 'cat', type: 'sound', val: 'cat', label: 'قطة', key: 'KeyB', keyLabel: 'B' },
+                    { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور', key: 'KeyC', keyLabel: 'C' }
                 ],
                 distractors: []
             }
@@ -185,16 +154,23 @@ const state = {
 const DEFAULT_GENERAL_SETTINGS = Object.freeze({
     trialsCount: 20,
     practiceEnabled: true,
-    practiceTrialsCount: 3,
+    practiceTrialsCount: 4,
     practiceOpenEnded: false,
     practiceFeedback: true,
     testFeedback: false,
-    minLatency: 0.5,
-    maxLatency: 3.0,
-    stimulusDuration: 1.0,
-    interStimulus: 1.0,
-    maxResponseTime: 3.0,
-    randomOrder: true
+    minLatencyMs: 500,
+    maxLatencyMs: 1500,
+    interStimulusMs: 1000
+});
+
+const MAX_AUDIO_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_AUDIO_EXTENSIONS = Object.freeze(['wav', 'mp3', 'ogg', 'm4a', 'mp4', 'webm']);
+
+const EARLY_RESPONSE_LIMIT_MS = 200;
+const DEFAULT_RESPONSE_SETTINGS = Object.freeze(deepClone(state.settings.responses));
+const RESPONSE_CATEGORY_ALIASES = Object.freeze({
+    '': 'غير محدد',
+    'اضطراب فرط الحركة وتشتت الانتباه': 'اضطراب فرط الحركة وتشتت الانتباه ADHD'
 });
 
 const DEFAULT_INSTRUCTIONS = Object.freeze(deepClone(state.settings.instructions));
@@ -243,6 +219,84 @@ function safeNumber(value, fallback = null) {
     if (value === null || value === undefined || String(value).trim() === '') return fallback;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function canonicalResponseCategory(category) {
+    const normalized = String(category || '').trim();
+    return RESPONSE_CATEGORY_ALIASES[normalized]
+        || (Object.prototype.hasOwnProperty.call(DEFAULT_RESPONSE_SETTINGS, normalized) ? normalized : 'غير محدد');
+}
+
+function normalizeResponseRange(range, fallback) {
+    return {
+        from: Math.round(safeNumber(range?.from, fallback.from)),
+        to: Math.round(safeNumber(range?.to, fallback.to))
+    };
+}
+
+function normalizeResponseSettings(settings) {
+    const normalized = {};
+    Object.entries(DEFAULT_RESPONSE_SETTINGS).forEach(([category, defaults]) => {
+        const source = settings?.[category]
+            || (category === 'اضطراب فرط الحركة وتشتت الانتباه ADHD'
+                ? settings?.['اضطراب فرط الحركة وتشتت الانتباه']
+                : null)
+            || {};
+        normalized[category] = {
+            correct: normalizeResponseRange(source.correct, defaults.correct),
+            late: normalizeResponseRange(source.late, defaults.late),
+            missed: normalizeResponseRange(source.missed, defaults.missed)
+        };
+        if (validateResponseLimits(normalized[category], category)) {
+            normalized[category] = deepClone(defaults);
+        }
+    });
+    return normalized;
+}
+
+function validateResponseLimits(limits, category = '') {
+    const values = [
+        limits?.correct?.from, limits?.correct?.to,
+        limits?.late?.from, limits?.late?.to,
+        limits?.missed?.from, limits?.missed?.to
+    ];
+    if (values.some(value => !Number.isInteger(value) || value < 0)) {
+        return `يجب إدخال أعداد صحيحة موجبة في جميع حدود ${category || 'الفئة'}.`;
+    }
+    if (limits.correct.from < EARLY_RESPONSE_LIMIT_MS) {
+        return `بداية الاستجابة الصحيحة في ${category} لا يمكن أن تقل عن ${EARLY_RESPONSE_LIMIT_MS} مللي ثانية.`;
+    }
+    if (limits.correct.to < limits.correct.from) return `نهاية الاستجابة الصحيحة في ${category} يجب ألا تقل عن بدايتها.`;
+    if (limits.late.from !== limits.correct.to + 1) return `يجب أن تبدأ الاستجابة المتأخرة في ${category} بعد الصحيحة مباشرة دون فجوة أو تداخل.`;
+    if (limits.late.to < limits.late.from) return `نهاية الاستجابة المتأخرة في ${category} يجب ألا تقل عن بدايتها.`;
+    if (limits.missed.from !== limits.late.to + 1) return `يجب أن يبدأ نطاق انتظار الاستجابة الفائتة في ${category} بعد المتأخرة مباشرة دون فجوة أو تداخل.`;
+    if (limits.missed.to < limits.missed.from) return `نهاية نطاق الاستجابة الفائتة في ${category} يجب ألا تقل عن بدايته.`;
+    return '';
+}
+
+function getResponseLimits(category, settings = state.settings.responses) {
+    const canonicalCategory = canonicalResponseCategory(category);
+    const defaults = DEFAULT_RESPONSE_SETTINGS[canonicalCategory] || DEFAULT_RESPONSE_SETTINGS['غير محدد'];
+    const candidate = normalizeResponseSettings(settings)[canonicalCategory] || deepClone(defaults);
+    return validateResponseLimits(candidate, canonicalCategory) ? deepClone(defaults) : deepClone(candidate);
+}
+
+function getSessionResponseLimits(session) {
+    return getResponseLimits(
+        session?.studentCategory,
+        session?.settingsSnapshot?.responses || state.settings.responses
+    );
+}
+
+function classifyResponseLatency(latencySeconds, limits) {
+    const latencyMs = Number(latencySeconds) * 1000;
+    if (!Number.isFinite(latencyMs)) return null;
+    if (latencyMs < EARLY_RESPONSE_LIMIT_MS) return 'early';
+    if (latencyMs >= limits.correct.from && latencyMs <= limits.correct.to) return 'correct';
+    // الاستجابة الفائتة تعني عدم حدوث ضغط حتى نهاية المهلة؛ لذلك أي ضغط
+    // بعد النطاق الصحيح وحتى انتهاء المهلة يظل استجابة متأخرة.
+    if (latencyMs > limits.correct.to) return 'late';
+    return 'early';
 }
 
 function describePointer(event) {
@@ -361,26 +415,17 @@ function sampleStdDev(values) {
     return Math.sqrt(variance);
 }
 
-function getSessionMaxResponseTime(session) {
-    const configuredLimit = [
-        session?.settingsSnapshot?.general?.maxResponseTime,
-        session?.maxResponseTime
-    ]
-        .map(value => safeNumber(value, null))
-        .find(value => value !== null && value > 0);
-    return configuredLimit ?? null;
-}
-
 function getTrialAnalysisCategory(trial, session) {
     const result = trial?.result;
     const latency = safeNumber(trial?.latency, null);
-    const maxResponseTime = getSessionMaxResponseTime(session);
+    const limits = getSessionResponseLimits(session);
 
-    if (result === 'early') return 'early';
-    if (latency !== null && maxResponseTime !== null && latency > maxResponseTime) return 'late';
+    if (result === 'early' || (latency !== null && latency * 1000 < EARLY_RESPONSE_LIMIT_MS)) return 'early';
     if (result === 'miss') return 'miss';
-    if (result === 'correct' || result === 'correct-rejection') return 'correct';
+    if (result === 'late') return 'late';
     if (result === 'wrong' || result === 'false-alarm') return 'wrong';
+    if (result === 'correct-rejection') return 'correct';
+    if (result === 'correct') return classifyResponseLatency(latency, limits) || 'correct';
     return 'wrong';
 }
 
@@ -395,14 +440,13 @@ function getTrialCalculationStatus(trial, session) {
 }
 
 function getCorrectReactionTimes(session) {
-    const maxResponseTime = getSessionMaxResponseTime(session);
     return (session.trials || [])
         .filter(trial => {
             const latency = safeNumber(trial.latency, null);
             return trial.result === 'correct'
                 && latency !== null
                 && latency >= 0
-                && (maxResponseTime === null || latency <= maxResponseTime);
+                && getTrialAnalysisCategory(trial, session) === 'correct';
         })
         .map(trial => Number(trial.latency));
 }
@@ -411,24 +455,29 @@ function normalizeSession(session) {
     const trials = Array.isArray(session.trials) ? session.trials : [];
     const practiceTrials = Array.isArray(session.practiceTrials) ? session.practiceTrials : [];
     const trialsCount = safeNumber(session.trialsCount, trials.length || 0);
+    const hasTrialDetails = trials.length > 0;
     const correctRejectionCount = safeNumber(session.correctRejectionCount,
         trials.filter(trial => trial.result === 'correct-rejection' || (trial.result === 'correct' && trial.requiredKey === 'ignore' && !trial.actualKey)).length);
-    const responseCorrectCount = safeNumber(session.responseCorrectCount,
-        trials.filter(trial => trial.result === 'correct' && trial.requiredKey !== 'ignore').length);
+    const calculatedResponseCorrectCount = trials.filter(trial => trial.result === 'correct'
+        && trial.requiredKey !== 'ignore'
+        && getTrialAnalysisCategory(trial, session) === 'correct').length;
+    const responseCorrectCount = hasTrialDetails ? calculatedResponseCorrectCount : safeNumber(session.responseCorrectCount, 0);
     const legacyCorrect = safeNumber(session.correctCount, responseCorrectCount + correctRejectionCount);
-    const correctCount = Math.max(legacyCorrect, responseCorrectCount + correctRejectionCount);
+    const correctCount = hasTrialDetails ? responseCorrectCount + correctRejectionCount : legacyCorrect;
     const wrongChoiceCount = safeNumber(session.wrongChoiceCount,
         trials.filter(trial => trial.result === 'wrong').length);
     const falseAlarmCount = safeNumber(session.falseAlarmCount,
         trials.filter(trial => trial.result === 'false-alarm').length);
-    const earlyCount = safeNumber(session.earlyCount,
-        trials.filter(trial => trial.result === 'early').length);
-    const legacyWrong = safeNumber(session.wrongCount, wrongChoiceCount + falseAlarmCount + earlyCount);
+    const earlyCount = hasTrialDetails
+        ? trials.filter(trial => getTrialAnalysisCategory(trial, session) === 'early').length
+        : safeNumber(session.earlyCount, 0);
+    const legacyWrong = safeNumber(session.wrongCount, wrongChoiceCount + falseAlarmCount);
     const missCount = safeNumber(session.missCount,
         trials.filter(trial => trial.result === 'miss').length);
-    const lateCount = trials.filter(trial => getTrialAnalysisCategory(trial, session) === 'late').length;
+    const lateCount = hasTrialDetails
+        ? trials.filter(trial => getTrialAnalysisCategory(trial, session) === 'late').length
+        : safeNumber(session.lateCount, 0);
     const correctLatencies = getCorrectReactionTimes({ ...session, trials });
-    const hasTrialDetails = trials.length > 0;
     const avgReactionTime = correctLatencies.length
         ? mean(correctLatencies)
         : (hasTrialDetails ? 0 : safeNumber(session.avgReactionTime, 0));
@@ -450,7 +499,7 @@ function normalizeSession(session) {
         correctRejectionCount,
         correctCount,
         wrongChoiceCount,
-        wrongCount: safeNumber(session.wrongCount, legacyWrong),
+        wrongCount: hasTrialDetails ? wrongChoiceCount + falseAlarmCount : legacyWrong,
         falseAlarmCount,
         earlyCount,
         lateCount,
@@ -470,8 +519,64 @@ function normalizeSession(session) {
 function migrateLoadedState() {
     state.settings = state.settings || {};
     state.settings.general = { ...DEFAULT_GENERAL_SETTINGS, ...(state.settings.general || {}) };
+    if (state.settings.generalTimeUnit !== 'ms') {
+        state.settings.general.minLatencyMs = Math.round(safeNumber(state.settings.general.minLatency, 0.5) * 1000);
+        state.settings.general.maxLatencyMs = Math.round(safeNumber(state.settings.general.maxLatency, 1.5) * 1000);
+        state.settings.general.interStimulusMs = Math.round(safeNumber(state.settings.general.interStimulus, 1) * 1000);
+        state.settings.generalTimeUnit = 'ms';
+    }
+    if (state.settings.generalNumericDefaultsVersion !== 3) {
+        state.settings.general.practiceTrialsCount = DEFAULT_GENERAL_SETTINGS.practiceTrialsCount;
+        state.settings.general.trialsCount = DEFAULT_GENERAL_SETTINGS.trialsCount;
+        state.settings.general.minLatencyMs = DEFAULT_GENERAL_SETTINGS.minLatencyMs;
+        state.settings.general.maxLatencyMs = DEFAULT_GENERAL_SETTINGS.maxLatencyMs;
+        state.settings.generalNumericDefaultsVersion = 3;
+    }
+    delete state.settings.general.minLatency;
+    delete state.settings.general.maxLatency;
+    delete state.settings.general.interStimulus;
+    delete state.settings.general.stimulusDuration;
+    delete state.settings.general.maxResponseTime;
+    delete state.settings.general.randomOrder;
+    state.settings.responses = normalizeResponseSettings(state.settings.responses);
     state.settings.instructions = state.settings.instructions || {};
     state.settings.stimuli = state.settings.stimuli || deepClone(DEFAULT_STIMULI);
+    if (state.settings.realAudioCatalogVersion !== 3) {
+        const soundLabels = {
+            dog: 'كلب',
+            cat: 'قطة',
+            bird: 'عصفور',
+            cow: 'بقرة',
+            donkey: 'حمار',
+            goat: 'ماعز'
+        };
+        const replacements = {
+            buzzer: 'dog',
+            bell: 'cat',
+            alert: 'bird',
+            explosion: 'cow',
+            horse: 'donkey',
+            car_horn: 'dog',
+            car_engine: 'dog',
+            train: 'dog',
+            airplane: 'bird',
+            motorcycle: 'dog'
+        };
+        ['auditorySimple', 'auditoryDiscriminative', 'auditoryChoice'].forEach(testType => {
+            const configuration = state.settings.stimuli[testType];
+            [...(configuration?.targets || []), ...(configuration?.distractors || [])].forEach(stimulus => {
+                if (stimulus.type === 'custom_sound') return;
+                const replacement = soundLabels[stimulus.val] ? stimulus.val : (replacements[stimulus.val] || 'dog');
+                stimulus.val = replacement;
+                stimulus.label = soundLabels[replacement];
+                stimulus.id = replacement;
+            });
+        });
+        state.settings.instructions['auditory-simple'] = DEFAULT_INSTRUCTIONS['auditory-simple'];
+        state.settings.instructions['auditory-discriminative'] = DEFAULT_INSTRUCTIONS['auditory-discriminative'];
+        state.settings.instructions['auditory-choice'] = DEFAULT_INSTRUCTIONS['auditory-choice'];
+        state.settings.realAudioCatalogVersion = 3;
+    }
     ['visualChoice', 'auditoryChoice'].forEach(testType => {
         const config = state.settings.stimuli[testType] || deepClone(DEFAULT_STIMULI[testType]);
         config.distractors = [];
@@ -544,6 +649,7 @@ function loadData() {
                 ...state.settings,
                 ...loadedSettings,
                 general: { ...state.settings.general, ...(loadedSettings.general || {}) },
+                responses: normalizeResponseSettings(loadedSettings.responses || state.settings.responses),
                 instructions: { ...state.settings.instructions, ...(loadedSettings.instructions || {}) },
                 stimuli: { ...state.settings.stimuli, ...(loadedSettings.stimuli || {}) }
             };
@@ -597,14 +703,25 @@ async function syncFromFirestore(writeBack = true) {
     if (!useFirebase || !db || !firebaseUser) return;
     try {
         const legacyRoot = db.collection('users').doc(firebaseUser.uid);
+        const emptyDoc = { exists: false, data: () => ({}) };
+        const emptySnapshot = { forEach: () => {} };
+        const legacySettingsRequest = firebaseAuthenticated
+            ? legacyRoot.collection('private').doc('settings').get().catch(() => emptyDoc)
+            : Promise.resolve(emptyDoc);
+        const legacyStudentsRequest = firebaseAuthenticated
+            ? legacyRoot.collection('students').get().catch(() => emptySnapshot)
+            : Promise.resolve(emptySnapshot);
+        const legacySessionsRequest = firebaseAuthenticated
+            ? legacyRoot.collection('sessions').get().catch(() => emptySnapshot)
+            : Promise.resolve(emptySnapshot);
         const [settingsDoc, studentsSnapshot, sessionsSnapshot, deletionsSnapshot, legacySettingsDoc, legacyStudentsSnapshot, legacySessionsSnapshot] = await Promise.all([
             db.collection('appData').doc('settings').get(),
             sharedCollection('students').get(),
             sharedCollection('sessions').get(),
             sharedCollection('deletions').get(),
-            legacyRoot.collection('private').doc('settings').get(),
-            legacyRoot.collection('students').get(),
-            legacyRoot.collection('sessions').get()
+            legacySettingsRequest,
+            legacyStudentsRequest,
+            legacySessionsRequest
         ]);
         const availableSettingsDoc = settingsDoc.exists ? settingsDoc : legacySettingsDoc;
         if (availableSettingsDoc.exists) {
@@ -616,6 +733,7 @@ async function syncFromFirestore(writeBack = true) {
                     ...state.settings,
                     ...remoteSettings,
                     general: { ...state.settings.general, ...(remoteSettings.general || {}) },
+                    responses: normalizeResponseSettings(remoteSettings.responses || state.settings.responses),
                     instructions: { ...state.settings.instructions, ...(remoteSettings.instructions || {}) },
                     stimuli: { ...state.settings.stimuli, ...(remoteSettings.stimuli || {}) }
                 };
@@ -681,6 +799,23 @@ async function syncAllToFirestore() {
         console.error('Secure cloud save failed:', error);
         showDataStatus('لم تكتمل المزامنة السحابية؛ الحفظ المحلي ما زال يعمل.', 'warning');
     }
+}
+
+async function saveCompletedTestToCloud(student, session) {
+    await firebaseReady;
+    if (!useFirebase || !db) throw new Error('cloud-unavailable');
+
+    const batch = db.batch();
+    if (student?.id) {
+        batch.set(db.collection('students').doc(student.id), student, { merge: true });
+    }
+    batch.set(db.collection('sessions').doc(session.id), session, { merge: true });
+
+    const cloudWrite = batch.commit();
+    const timeout = new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error('cloud-save-timeout')), 12000);
+    });
+    await Promise.race([cloudWrite, timeout]);
 }
 
 async function deleteRemoteRecord(collectionName, id) {
@@ -767,7 +902,7 @@ function updateUI() {
                 <td><strong>${escapeHtml(student.name)}</strong></td>
                 <td>${escapeHtml(testNameAr)}</td>
                 <td>${escapeHtml(formattedDate)}</td>
-                <td>${escapeHtml(session.avgReactionTime)} ثانية</td>
+                <td>${milliseconds(session.avgReactionTime)} مللي ثانية</td>
                 <td><span class="badge-status correct">${Math.round((session.correctCount/session.trialsCount)*100)}% دقة</span></td>
             `;
             latestResultsBody.appendChild(tr);
@@ -800,18 +935,6 @@ function initGeneralEventListeners() {
         renderDashboardCharts();
         if (state.activeSession) {
             renderReportCharts(state.activeSession);
-        }
-    });
-
-    // Cloud Status Info Popup
-    document.getElementById("cloudStatusBadge")?.addEventListener("click", () => {
-        const info = lastCloudStatus.detail ? `\n\nتفاصيل: ${lastCloudStatus.detail}` : '';
-        if (lastCloudStatus.status === 'connected') {
-            alert(`🟢 المزامنة السحابية مفعّلة ومتصلة بنجاح!\nتتم مشاركة نتائج الاختبارات والمشاركين تلقائياً على كافة الأجهزة المقترنة.${info}`);
-        } else if (lastCloudStatus.status === 'error') {
-            alert(`🔴 خطأ المزامنة السحابية:\n${lastCloudStatus.title}${info}\n\nخطوات الحل:\n1. افتح موقع Firebase Console للمشروع srt-id-ba9e8\n2. اذهب إلى Authentication -> Sign-in method\n3. قم بتفعيل خيار "Anonymous"\n4. اذهب إلى Firestore Database -> Rules وقم بنشر قواعد الملف firestore.rules.`);
-        } else {
-            alert(`ℹ️ حالة الاتصال بالسحابة:\n${lastCloudStatus.title}${info}`);
         }
     });
 
@@ -886,6 +1009,10 @@ function initGeneralEventListeners() {
 
         const selectedTests = Array.from(document.querySelectorAll(".test-checkbox:checked")).map(cb => cb.value);
         if (selectedTests.length === 0) { alert("يرجى تحديد اختبار واحد على الأقل."); return; }
+        if (!enteredName) { alert('يرجى إدخال اسم الطالب.'); document.getElementById('tsStudentName')?.focus(); return; }
+        if (age === null) { alert('يرجى إدخال عمر الطالب.'); document.getElementById('tsStudentAge')?.focus(); return; }
+        if (!gender) { alert('يرجى اختيار جنس الطالب.'); document.getElementById('tsStudentGender')?.focus(); return; }
+        if (!category) { alert('يرجى اختيار فئة الطالب.'); document.getElementById('tsStudentCategory')?.focus(); return; }
         if (age !== null && (age < 1 || age > 120)) { alert('العمر يجب أن يكون بين سنة و120 سنة.'); return; }
         if (iq !== null && (iq < 30 || iq > 160)) { alert('نسبة الذكاء يجب أن تكون بين 30 و160.'); return; }
 
@@ -944,7 +1071,7 @@ function initGeneralEventListeners() {
         if (!state.activeSession) return;
         const student = state.students.find(s => s.id === state.activeSession.studentId) || { name: state.activeSession.studentName };
         const testName = getTestArabicName(state.activeSession.testType);
-        const shareText = `تقرير اختبار الرجع الحسي: \nالطفل: ${student.name}\nالاختبار: ${testName}\nمتوسط زمن الرجع: ${state.activeSession.avgReactionTime} ثانية\nالدقة: ${Math.round((state.activeSession.correctCount/state.activeSession.trialsCount)*100)}%`;
+        const shareText = `تقرير اختبار الرجع الحسي: \nالطفل: ${student.name}\nالاختبار: ${testName}\nمتوسط زمن الرجع: ${milliseconds(state.activeSession.avgReactionTime)} مللي ثانية\nالدقة: ${Math.round((state.activeSession.correctCount/state.activeSession.trialsCount)*100)}%`;
         try {
             if (navigator.share) await navigator.share({ title: 'تقرير مقياس زمن الرجع الحسي', text: shareText });
             else if (navigator.clipboard) {
@@ -1177,11 +1304,9 @@ function populateSettingsForms() {
     const values = {
         cfgTrialsCount: general.trialsCount,
         cfgPracticeTrialsCount: general.practiceTrialsCount,
-        cfgMinLatency: general.minLatency,
-        cfgMaxLatency: general.maxLatency,
-        cfgStimulusDuration: general.stimulusDuration,
-        cfgInterStimulus: general.interStimulus,
-        cfgMaxResponseTime: general.maxResponseTime
+        cfgMinLatency: general.minLatencyMs,
+        cfgMaxLatency: general.maxLatencyMs,
+        cfgInterStimulus: general.interStimulusMs
     };
     Object.entries(values).forEach(([id, value]) => {
         const element = document.getElementById(id);
@@ -1192,8 +1317,7 @@ function populateSettingsForms() {
         cfgPracticeEnabled: general.practiceEnabled,
         cfgPracticeOpenEnded: general.practiceOpenEnded,
         cfgPracticeFeedback: general.practiceFeedback,
-        cfgTestFeedback: general.testFeedback,
-        cfgRandomOrder: general.randomOrder
+        cfgTestFeedback: general.testFeedback
     };
     Object.entries(checks).forEach(([id, checked]) => {
         const element = document.getElementById(id);
@@ -1214,6 +1338,59 @@ function populateSettingsForms() {
     });
 
     syncPracticeSettingsUI();
+    renderResponseSettingsTable();
+}
+
+function renderResponseSettingsTable() {
+    const body = document.getElementById('responseSettingsTableBody');
+    if (!body) return;
+    body.innerHTML = '';
+    const settings = normalizeResponseSettings(state.settings.responses);
+    Object.entries(DEFAULT_RESPONSE_SETTINGS).forEach(([category]) => {
+        const limits = settings[category];
+        const row = document.createElement('tr');
+        row.dataset.category = category;
+        row.innerHTML = `
+            <th scope="row">${escapeHtml(category)}</th>
+            <td class="fixed-early-value">أقل من ${EARLY_RESPONSE_LIMIT_MS}</td>
+            ${responseRangeInputs(category, 'correct', limits.correct)}
+            ${responseRangeInputs(category, 'late', limits.late)}
+            ${responseRangeInputs(category, 'missed', limits.missed)}
+        `;
+        body.appendChild(row);
+    });
+}
+
+function responseRangeInputs(category, kind, range) {
+    return ['from', 'to'].map(boundary => `
+        <td><input type="number" min="0" step="1" inputmode="numeric"
+            data-response-category="${escapeHtml(category)}"
+            data-response-kind="${kind}"
+            data-response-boundary="${boundary}"
+            value="${range[boundary]}"
+            aria-label="${boundary === 'from' ? 'من' : 'إلى'} ${escapeHtml(category)}"></td>
+    `).join('');
+}
+
+function readResponseSettingsTable() {
+    const settings = deepClone(DEFAULT_RESPONSE_SETTINGS);
+    document.querySelectorAll('#responseSettingsTableBody tr[data-category]').forEach(row => {
+        const category = row.dataset.category;
+        ['correct', 'late', 'missed'].forEach(kind => {
+            ['from', 'to'].forEach(boundary => {
+                const input = row.querySelector(`[data-response-kind="${kind}"][data-response-boundary="${boundary}"]`);
+                settings[category][kind][boundary] = Number(input?.value);
+            });
+        });
+    });
+    return settings;
+}
+
+function showResponseSettingsError(message = '') {
+    const errorBox = document.getElementById('responseSettingsError');
+    if (!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.hidden = !message;
 }
 
 function syncPracticeSettingsUI() {
@@ -1255,21 +1432,17 @@ function initSettingsForms() {
 
     // Save General Settings
     document.getElementById("saveGeneralSettingsBtn")?.addEventListener("click", () => {
-        state.settings.general.trialsCount = Math.max(1, Math.min(200, parseInt(document.getElementById("cfgTrialsCount")?.value) || 20));
+        state.settings.general.trialsCount = Math.max(1, Math.min(200, parseInt(document.getElementById("cfgTrialsCount")?.value) || DEFAULT_GENERAL_SETTINGS.trialsCount));
         state.settings.general.practiceEnabled = document.getElementById("cfgPracticeEnabled")?.checked || false;
-        state.settings.general.practiceTrialsCount = Math.max(0, Math.min(100, parseInt(document.getElementById("cfgPracticeTrialsCount")?.value) || 0));
+        state.settings.general.practiceTrialsCount = Math.max(0, Math.min(100, parseInt(document.getElementById("cfgPracticeTrialsCount")?.value) || DEFAULT_GENERAL_SETTINGS.practiceTrialsCount));
         state.settings.general.practiceOpenEnded = document.getElementById("cfgPracticeOpenEnded")?.checked || false;
         state.settings.general.practiceFeedback = document.getElementById("cfgPracticeFeedback")?.checked || false;
         state.settings.general.testFeedback = document.getElementById("cfgTestFeedback")?.checked || false;
-        state.settings.general.minLatency = parseFloat(document.getElementById("cfgMinLatency")?.value) || 0.5;
-        state.settings.general.maxLatency = parseFloat(document.getElementById("cfgMaxLatency")?.value) || 5.0;
-        state.settings.general.stimulusDuration = parseFloat(document.getElementById("cfgStimulusDuration")?.value) || 1.0;
-        state.settings.general.interStimulus = parseFloat(document.getElementById("cfgInterStimulus")?.value) || 1.0;
-        state.settings.general.maxResponseTime = parseFloat(document.getElementById("cfgMaxResponseTime")?.value) || 3.0;
-        state.settings.general.randomOrder = document.getElementById("cfgRandomOrder")?.checked || false;
-
-        if (state.settings.general.maxLatency < state.settings.general.minLatency) {
-            state.settings.general.maxLatency = state.settings.general.minLatency;
+        state.settings.general.minLatencyMs = Math.max(0, Math.round(parseFloat(document.getElementById("cfgMinLatency")?.value) || DEFAULT_GENERAL_SETTINGS.minLatencyMs));
+        state.settings.general.maxLatencyMs = Math.max(0, Math.round(parseFloat(document.getElementById("cfgMaxLatency")?.value) || DEFAULT_GENERAL_SETTINGS.maxLatencyMs));
+        state.settings.general.interStimulusMs = Math.max(0, Math.round(parseFloat(document.getElementById("cfgInterStimulus")?.value) || DEFAULT_GENERAL_SETTINGS.interStimulusMs));
+        if (state.settings.general.maxLatencyMs < state.settings.general.minLatencyMs) {
+            state.settings.general.maxLatencyMs = state.settings.general.minLatencyMs;
         }
 
         touchSettings();
@@ -1280,10 +1453,14 @@ function initSettingsForms() {
 
     // Reset General Settings
     document.getElementById("resetGeneralSettingsBtn")?.addEventListener("click", () => {
-        state.settings.general = { ...DEFAULT_GENERAL_SETTINGS };
+        state.settings.general.practiceTrialsCount = DEFAULT_GENERAL_SETTINGS.practiceTrialsCount;
+        state.settings.general.trialsCount = DEFAULT_GENERAL_SETTINGS.trialsCount;
+        state.settings.general.minLatencyMs = DEFAULT_GENERAL_SETTINGS.minLatencyMs;
+        state.settings.general.maxLatencyMs = DEFAULT_GENERAL_SETTINGS.maxLatencyMs;
         touchSettings();
         populateSettingsForms();
-        alert("تمت استعادة الإعدادات الافتراضية. لا تنس الضغط على حفظ.");
+        saveData();
+        alert("تمت إعادة ضبط الأرقام إلى القيم الافتراضية وحفظها.");
     });
 
     // Save Instructions Settings
@@ -1307,6 +1484,34 @@ function initSettingsForms() {
         populateSettingsForms();
         saveData();
         alert('تمت استعادة تعليمات الاختبارات الافتراضية.');
+    });
+
+    document.getElementById('saveResponseSettingsBtn')?.addEventListener('click', () => {
+        const nextSettings = readResponseSettingsTable();
+        for (const [category, limits] of Object.entries(nextSettings)) {
+            const error = validateResponseLimits(limits, category);
+            if (error) {
+                showResponseSettingsError(error);
+                document.querySelector(`#responseSettingsTableBody tr[data-category="${CSS.escape(category)}"] input`)?.focus();
+                return;
+            }
+        }
+        state.settings.responses = normalizeResponseSettings(nextSettings);
+        touchSettings();
+        saveData();
+        renderResponseSettingsTable();
+        showResponseSettingsError('');
+        alert('تم حفظ إعدادات الاستجابة بنجاح.');
+    });
+
+    document.getElementById('resetResponseSettingsBtn')?.addEventListener('click', () => {
+        if (!confirm('هل تريد استعادة الحدود الزمنية الافتراضية لجميع الفئات؟')) return;
+        state.settings.responses = deepClone(DEFAULT_RESPONSE_SETTINGS);
+        touchSettings();
+        saveData();
+        renderResponseSettingsTable();
+        showResponseSettingsError('');
+        alert('تمت استعادة إعدادات الاستجابة الافتراضية.');
     });
 
     // Save Stimuli Settings
@@ -1361,7 +1566,7 @@ function initSettingsForms() {
             state.settings.stimuli[testType].targets.push({
                 id: `target_${Date.now()}`,
                 type: 'sound',
-                val: 'buzzer',
+                val: 'dog',
                 label: 'مستهدف جديد',
                 key: nextKey,
                 keyLabel
@@ -1389,7 +1594,7 @@ function initSettingsForms() {
             state.settings.stimuli[testType].distractors.push({
                 id: `distractor_${Date.now()}`,
                 type: 'sound',
-                val: 'bell',
+                val: 'cat',
                 label: 'مشتت جديد',
                 ...(isChoice ? { key: 'ignore', keyLabel: 'تجاهل' } : {})
             });
@@ -1423,21 +1628,21 @@ const DEFAULT_STIMULI = {
         distractors: []
     },
     auditorySimple: {
-        targets: [{ id: 'buzzer', type: 'sound', val: 'buzzer', label: 'صفارة', key: 'Space', keyLabel: 'Space' }],
+        targets: [{ id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'Space', keyLabel: 'Space' }],
         distractors: []
     },
     auditoryDiscriminative: {
-        targets: [{ id: 'buzzer', type: 'sound', val: 'buzzer', label: 'صفارة', key: 'Space', keyLabel: 'Space' }],
+        targets: [{ id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'Space', keyLabel: 'Space' }],
         distractors: [
-            { id: 'bell', type: 'sound', val: 'bell', label: 'جرس', key: 'ignore', keyLabel: 'تجاهل' },
-            { id: 'explosion', type: 'sound', val: 'explosion', label: 'انفجار', key: 'ignore', keyLabel: 'تجاهل' }
+            { id: 'cat', type: 'sound', val: 'cat', label: 'قطة', key: 'ignore', keyLabel: 'تجاهل' },
+            { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور', key: 'ignore', keyLabel: 'تجاهل' }
         ]
     },
     auditoryChoice: {
         targets: [
-            { id: 'buzzer', type: 'sound', val: 'buzzer', label: 'صفارة', key: 'KeyA', keyLabel: 'A' },
-            { id: 'bell', type: 'sound', val: 'bell', label: 'جرس', key: 'KeyB', keyLabel: 'B' },
-            { id: 'alert', type: 'sound', val: 'alert', label: 'تنبيه', key: 'KeyC', keyLabel: 'C' }
+            { id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'KeyA', keyLabel: 'A' },
+            { id: 'cat', type: 'sound', val: 'cat', label: 'قطة', key: 'KeyB', keyLabel: 'B' },
+            { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور', key: 'KeyC', keyLabel: 'C' }
         ],
         distractors: []
     }
@@ -1526,7 +1731,7 @@ function renderMappingRow(parent, stim, isVisual, categoryLabel) {
     if (isVisual) {
         typeCol.innerText = stim.type === 'color' ? "لون وشكل" : "صورة مرفوعة";
     } else {
-        typeCol.innerText = stim.type === 'custom_sound' ? "صوت مخصص مرفوع" : "صوت افتراضي";
+        typeCol.innerText = stim.type === 'custom_sound' ? "صوت حقيقي مرفوع" : "صوت حقيقي جاهز";
     }
     
     const keyCol = document.createElement("td");
@@ -1873,7 +2078,7 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
         const presetTypeBtn = document.createElement("button");
         presetTypeBtn.type = "button";
         presetTypeBtn.className = `stim-type-btn ${stim.type !== 'custom_sound' ? 'active' : ''}`;
-        presetTypeBtn.innerText = "صوت افتراضي";
+        presetTypeBtn.innerText = "صوت حقيقي جاهز";
         
         const customTypeBtn = document.createElement("button");
         customTypeBtn.type = "button";
@@ -1896,7 +2101,7 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
                 soundCol.className = "form-group";
                 soundCol.style.gap = "4px";
                 const sLabel = document.createElement("label");
-                sLabel.innerText = "اختر الصوت الافتراضي:";
+                sLabel.innerText = "اختر صوتًا حقيقيًا:";
                 sLabel.style.fontSize = "11px";
                 const sSelect = document.createElement("select");
                 sSelect.style.padding = "6px 10px";
@@ -1907,27 +2112,18 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
                 sSelect.style.color = "var(--text-main)";
                 sSelect.style.fontFamily = "var(--font-primary)";
                 sSelect.innerHTML = `
-                    <optgroup label="أصوات عامة">
-                        <option value="buzzer">صفارة 📢</option>
-                        <option value="bell">جرس 🔔</option>
-                        <option value="alert">منبّه ⏰</option>
-                    </optgroup>
-                    <optgroup label="الحيوانات">
+                    <optgroup label="الأصوات الحقيقية المرفقة">
                         <option value="dog">كلب 🐕</option>
                         <option value="cat">قطة 🐈</option>
-                        <option value="bird">طائر 🐦</option>
-                        <option value="horse">حصان 🐎</option>
+                        <option value="bird">عصفور 🐦</option>
                         <option value="cow">بقرة 🐄</option>
-                    </optgroup>
-                    <optgroup label="المواصلات">
-                        <option value="car_horn">بوق سيارة 🚗</option>
-                        <option value="car_engine">محرك سيارة ⚙️</option>
-                        <option value="train">قطار 🚆</option>
-                        <option value="airplane">طائرة ✈️</option>
-                        <option value="motorcycle">دراجة نارية 🏍️</option>
+                        <option value="donkey">حمار</option>
+                        <option value="goat">ماعز 🐐</option>
                     </optgroup>
                 `;
-                sSelect.value = (stim.val && !stim.val.startsWith("data:")) ? stim.val : "buzzer";
+                const availableRealSounds = ['dog', 'cat', 'bird', 'cow', 'donkey', 'goat'];
+                sSelect.value = availableRealSounds.includes(stim.val) ? stim.val : 'dog';
+                if (!availableRealSounds.includes(stim.val)) stim.val = 'dog';
                 sSelect.addEventListener("change", () => {
                     stim.val = sSelect.value;
                     renderSettingsStimuliMappingOnly();
@@ -1942,7 +2138,7 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
                 fileCol.style.gap = "4px";
                 
                 const fLabel = document.createElement("label");
-                fLabel.innerText = "رفع ملف صوتي من الجهاز (أقل من 500KB):";
+                fLabel.innerText = "رفع ملف صوتي حقيقي من الجهاز (الحد الأقصى 10 ميجابايت):";
                 fLabel.style.fontSize = "11px";
                 
                 const fileWrapper = document.createElement("div");
@@ -1950,17 +2146,23 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
                 
                 const uploadBtn = document.createElement("div");
                 uploadBtn.className = "file-upload-btn";
-                uploadBtn.innerHTML = (stim.val && stim.val.startsWith("data:")) ? `✓ تم رفع صوت مخصص` : `📁 اختر ملفاً صوتياً...`;
+                uploadBtn.innerHTML = stim.val ? `✓ تم رفع صوت مخصص` : `📁 اختر ملفاً صوتياً...`;
                 
                 const fInput = document.createElement("input");
                 fInput.type = "file";
-                fInput.accept = "audio/*";
+                fInput.accept = ".wav,.mp3,.ogg,.m4a,.mp4,.webm,audio/*";
                 
                 fInput.addEventListener("change", async (e) => {
                     const file = e.target.files[0];
                     if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                            alert("حجم الملف الصوتي يجب ألا يتجاوز 5 ميجابايت.");
+                        if (!isSupportedAudioFile(file)) {
+                            alert("صيغة الصوت غير مدعومة. استخدم WAV أو MP3 أو OGG أو M4A أو WebM.");
+                            e.target.value = '';
+                            return;
+                        }
+                        if (file.size > MAX_AUDIO_FILE_SIZE_BYTES) {
+                            alert("حجم الملف الصوتي يجب ألا يتجاوز 10 ميجابايت.");
+                            e.target.value = '';
                             return;
                         }
                         uploadBtn.textContent = '⏳ جاري الرفع...';
@@ -1975,7 +2177,8 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
                         } catch (error) {
                             console.error('Audio upload failed:', error);
                             uploadBtn.textContent = 'تعذر رفع الصوت — حاول مرة أخرى';
-                            showDataStatus('تعذر حفظ الملف الصوتي. تأكد من الاتصال وحجم الملف.', 'error');
+                            showDataStatus(describeStimulusUploadError(error), 'error');
+                            e.target.value = '';
                         }
                     }
                 });
@@ -1992,7 +2195,7 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
             if (stim.type !== 'custom_sound') return;
             deleteStoredStimulus(stim.val);
             stim.type = 'sound';
-            stim.val = "buzzer";
+            stim.val = "dog";
             presetTypeBtn.classList.add("active");
             customTypeBtn.classList.remove("active");
             renderAuditorySubControls();
@@ -2060,13 +2263,48 @@ function readFileAsDataUrl(file) {
     });
 }
 
+function getFileExtension(fileName) {
+    return String(fileName || '').split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+}
+
+function isSupportedAudioFile(file) {
+    const extension = getFileExtension(file?.name);
+    const mimeType = String(file?.type || '').toLowerCase();
+    return SUPPORTED_AUDIO_EXTENSIONS.includes(extension) || mimeType.startsWith('audio/');
+}
+
+function getUploadContentType(blob, fileName, folder) {
+    if (blob?.type) return blob.type;
+    const extension = getFileExtension(fileName);
+    if (folder === 'audio') {
+        const audioTypes = { wav: 'audio/wav', mp3: 'audio/mpeg', ogg: 'audio/ogg', m4a: 'audio/mp4', mp4: 'audio/mp4', webm: 'audio/webm' };
+        return audioTypes[extension] || 'audio/mpeg';
+    }
+    return 'application/octet-stream';
+}
+
+function describeStimulusUploadError(error) {
+    const code = String(error?.code || '');
+    if (code.includes('unauthenticated')) return 'تعذر رفع الصوت: فعّل تسجيل الدخول المجهول Anonymous في Firebase Authentication.';
+    if (code.includes('unauthorized')) return 'تعذر رفع الصوت: قواعد Firebase Storage لا تسمح بالرفع. انشر ملف storage.rules المرفق.';
+    if (code.includes('quota-exceeded')) return 'تعذر رفع الصوت: تم تجاوز سعة أو حصة Firebase Storage.';
+    if (code.includes('retry-limit') || code.includes('network')) return 'تعذر رفع الصوت بسبب الاتصال. تحقق من الإنترنت ثم أعد المحاولة.';
+    if (code.includes('storage-unavailable')) return 'تعذر رفع الصوت لأن Firebase Storage غير مهيأ أو غير متاح.';
+    return `تعذر رفع الملف الصوتي${code ? ` (${code})` : ''}. راجع إعداد Firebase Storage.`;
+}
+
 async function uploadBlobToFirebase(blob, fileName, folder) {
     await firebaseReady;
     if (!storage || !firebaseUser) return null;
-    const extension = String(fileName || '').split('.').pop()?.replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
+    if (auth && !auth.currentUser) {
+        const error = new Error('Anonymous authentication is required for Storage uploads');
+        error.code = 'storage/unauthenticated';
+        throw error;
+    }
+    const extension = getFileExtension(fileName).slice(0, 8) || 'bin';
     const objectName = `${makeEntityId('stimulus')}.${extension}`;
     const reference = storage.ref(`app/stimuli/${folder}/${objectName}`);
-    const snapshot = await reference.put(blob, { contentType: blob.type || 'application/octet-stream' });
+    const snapshot = await reference.put(blob, { contentType: getUploadContentType(blob, fileName, folder) });
     return snapshot.ref.getDownloadURL();
 }
 
@@ -2099,6 +2337,11 @@ async function storeStimulusFile(file, folder) {
     await firebaseReady;
     const remoteUrl = await uploadBlobToFirebase(file, file.name, folder);
     if (remoteUrl) return remoteUrl;
+    if (folder === 'audio') {
+        const error = new Error('Firebase Storage is unavailable for persistent audio uploads');
+        error.code = 'storage/storage-unavailable';
+        throw error;
+    }
     if (file.size > 768 * 1024) throw new Error('Local fallback file is too large');
     return readFileAsDataUrl(file);
 }
@@ -2166,7 +2409,7 @@ function renderDashboardCharts() {
     // Sort runs chronologically
     const sorted = [...state.sessions].sort((a,b) => new Date(a.date) - new Date(b.date));
     const dates = sorted.map(s => new Date(s.date).toLocaleDateString('ar-EG', {month:'short', day:'numeric'}));
-    const reactionTimes = sorted.map(s => s.avgReactionTime);
+    const reactionTimes = sorted.map(s => milliseconds(s.avgReactionTime));
 
     const dbTrendCtx = document.getElementById("dashboardReactionTrendChart");
     if (dbTrendCtx) {
@@ -2176,7 +2419,7 @@ function renderDashboardCharts() {
             data: {
                 labels: dates,
                 datasets: [{
-                    label: 'متوسط زمن الاستجابة (ثانية)',
+                    label: 'متوسط زمن الاستجابة (مللي ثانية)',
                     data: reactionTimes,
                     borderColor: '#6c5ce7',
                     backgroundColor: 'rgba(108, 92, 231, 0.1)',
@@ -2287,7 +2530,7 @@ function renderStudentTestsOverview(studentId) {
                 <div class="student-test-card-metrics">
                     <span>عدد التطبيقات<strong>${testSessions.length}</strong></span>
                     <span>الدقة<strong>${accuracy.toFixed(1)}%</strong></span>
-                    <span>متوسط الزمن<strong>${Number(latest.avgReactionTime || 0).toFixed(2)} ث</strong></span>
+                    <span>متوسط الزمن<strong>${milliseconds(latest.avgReactionTime)} مللي ثانية</strong></span>
                     <span>الانحراف المعياري<strong>${stdDevText}</strong></span>
                 </div>
                 <div class="student-test-card-footer">
@@ -2341,7 +2584,8 @@ function getTrialResultMeta(result) {
         wrong: { label: 'اختيار خاطئ', className: 'wrong' },
         miss: { label: 'استجابة فائتة', className: 'miss' },
         'false-alarm': { label: 'ضغط خاطئ على مشتت', className: 'wrong' },
-        early: { label: 'استجابة مبكرة', className: 'wrong' }
+        early: { label: 'استجابة مبكرة', className: 'wrong' },
+        late: { label: 'استجابة متأخرة', className: 'wrong' }
     };
     return map[result] || { label: result || 'غير محدد', className: 'miss' };
 }
@@ -2433,6 +2677,8 @@ function loadSessionReport(session) {
     setEl("lblValFalseAlarmPct", `(${pct(session.falseAlarmCount).toFixed(1)}%)`);
     setEl("lblValEarly", session.earlyCount || 0);
     setEl("lblValEarlyPct", `(${pct(session.earlyCount).toFixed(1)}%)`);
+    setEl("lblValLate", session.lateCount || 0);
+    setEl("lblValLatePct", `(${pct(session.lateCount).toFixed(1)}%)`);
     setEl("lblValAccuracy", `${Number(session.accuracy || 0).toFixed(1)}%`);
     setEl("lblValErrorRate", `${Number(session.errorRate || 0).toFixed(1)}%`);
 
@@ -2517,10 +2763,10 @@ function renderReportCharts(session) {
     rptAccuracyDonutChart = new Chart(rptAccCtx, {
         type: 'doughnut',
         data: {
-            labels: ['صحيح', 'اختيار خاطئ', 'استجابة فائتة', 'ضغط خاطئ على مشتت', 'مبكرة'],
+            labels: ['صحيح', 'خاطئ', 'استجابة فائتة', 'متأخرة'],
             datasets: [{
-                data: [session.correctCount, session.wrongChoiceCount || 0, session.missCount, session.falseAlarmCount || 0, session.earlyCount || 0],
-                backgroundColor: ['#00b894', '#1e90ff', '#9b59b6', '#e74c3c', '#e17055'],
+                data: [session.correctCount, session.wrongCount || 0, session.missCount, session.lateCount || 0],
+                backgroundColor: ['#00b894', '#1e90ff', '#9b59b6', '#f39c12'],
                 borderWidth: 0
             }]
         },
@@ -2839,6 +3085,8 @@ let grpSlowestRTChartInstance = null;
 function summarizeSessions(sessions) {
     const normalized = sessions.map(normalizeSession);
     const trials = normalized.reduce((sum, session) => sum + formalTrialCount(session), 0);
+    const correctResponses = normalized.reduce((sum, session) => sum + session.correctCount, 0);
+    const wrongResponses = normalized.reduce((sum, session) => sum + session.wrongCount, 0);
     const misses = normalized.reduce((sum, session) => sum + session.missCount, 0);
     const practice = normalized.reduce((sum, session) => sum + (session.practiceTrialsCount || 0), 0);
     const correctRejections = normalized.reduce((sum, session) => sum + session.correctRejectionCount, 0);
@@ -2884,6 +3132,8 @@ function summarizeSessions(sessions) {
         sessions: normalized.length,
         trials,
         practice,
+        correctResponses,
+        wrongResponses,
         mean: mean(participantMeans),
         median: median(participantMeans),
         stdDev: sampleStdDev(participantMeans),
@@ -2966,7 +3216,7 @@ function buildGroupExcelRows(sessions, testFilter = '') {
         'التدريب غير المحتسب', 'متوسط العمر', 'متوسط نسبة الذكاء',
         'متوسط زمن الاستجابة (مللي ثانية)', 'وسيط زمن الاستجابة (مللي ثانية)', 'الانحراف المعياري (مللي ثانية)',
         'أسرع استجابة (مللي ثانية)', 'أبطأ استجابة (مللي ثانية)', 'الدقة %', 'نسبة الخطأ %',
-        'الاستجابات الفائتة %', 'عدد الاستجابات الفائتة', 'التجاهل الصحيح', 'الضغط الخاطئ على المشتت', 'الاستجابات المبكرة', 'الاستجابات المتأخرة المستبعدة'
+        'الاستجابات الفائتة %', 'عدد الاستجابات الصحيحة', 'عدد الاستجابات الخاطئة', 'عدد الاستجابات الفائتة', 'التجاهل الصحيح', 'الضغط الخاطئ على المشتت', 'الاستجابات المبكرة', 'الاستجابات المتأخرة'
     ]];
     buildGroupReportEntries(sessions, testFilter).forEach(entry => {
         const summary = entry.summary;
@@ -2985,6 +3235,8 @@ function buildGroupExcelRows(sessions, testFilter = '') {
             Number(summary.accuracy.toFixed(2)),
             Number(summary.errorRate.toFixed(2)),
             Number(summary.missRate.toFixed(2)),
+            summary.correctResponses,
+            summary.wrongResponses,
             summary.misses,
             summary.correctRejections,
             summary.falseAlarms,
@@ -3068,13 +3320,13 @@ function buildWideModalitySheet(sessions, modality) {
     ];
     const rows = [[], []];
 
-    rows[0].push('بيانات أساسية', '', '', '');
+    rows[0].push('بيانات أساسية', '', '', '', '');
     ['البسيط', 'التمييزي', 'الاختياري'].forEach(level => {
         rows[0].push(`زمن الرجع ${typeArabic} ${level}`, ...Array(trialsPerTest + statisticLabels.length).fill(''));
     });
-    rows[0].push('المؤشرات الكلية', '', '');
+    rows[0].push('المؤشرات الكلية', '', '', '', '', '', '', '');
 
-    rows[1].push('الاسم أو الحالة', 'النوع', 'العمر', 'نسبة الذكاء');
+    rows[1].push('الاسم أو الحالة', 'النوع', 'العمر', 'نسبة الذكاء', 'الفئة');
     const totalLabels = [
         `مجموع أزمنة ${typeArabic} البسيط`,
         `مجموع أزمنة ${typeArabic} التمييزي`,
@@ -3087,7 +3339,12 @@ function buildWideModalitySheet(sessions, modality) {
     rows[1].push(
         `المجموع الكلي ${modalityArabic}`,
         `المتوسط الكلي ${modalityArabic} للاستجابات الصحيحة`,
-        `الانحراف المعياري الكلي ${modalityArabic} للاستجابات الصحيحة`
+        `الانحراف المعياري الكلي ${modalityArabic} للاستجابات الصحيحة`,
+        `مجموع الاستجابات المبكرة ${modalityArabic}`,
+        `مجموع الاستجابات المتأخرة ${modalityArabic}`,
+        `مجموع الاستجابات الخاطئة ${modalityArabic}`,
+        `مجموع الاستجابات الصحيحة ${modalityArabic}`,
+        `مجموع الاستجابات الفائتة ${modalityArabic}`
     );
 
     const groups = new Map();
@@ -3107,7 +3364,8 @@ function buildWideModalitySheet(sessions, modality) {
                 name: student.name || firstSession.studentName || 'حالة غير مسماة',
                 gender: student.gender || firstSession.studentGender || '',
                 age: student.age ?? firstSession.studentAge ?? '',
-                iq: student.iq ?? firstSession.studentIQ ?? ''
+                iq: student.iq ?? firstSession.studentIQ ?? '',
+                category: student.category || firstSession.studentCategory || 'غير محدد'
             };
         })
         .sort((first, second) => first.name.localeCompare(second.name, 'ar'))
@@ -3115,9 +3373,10 @@ function buildWideModalitySheet(sessions, modality) {
             const latestSessions = testTypes.map(testType => group.studentSessions
                 .filter(session => session.testType === testType)
                 .sort((first, second) => new Date(second.date) - new Date(first.date))[0] || null);
-            const row = [group.name, group.gender, group.age, group.iq];
+            const row = [group.name, group.gender, group.age, group.iq, group.category];
             const allCorrectTimes = [];
             let modalityTotal = 0;
+            const modalityCounts = { correct: 0, wrong: 0, early: 0, late: 0, miss: 0 };
 
             latestSessions.forEach(session => {
                 const trialValues = Array(trialsPerTest).fill('');
@@ -3140,6 +3399,7 @@ function buildWideModalitySheet(sessions, modality) {
                     validTotal = validCorrectTimes.reduce((sum, time) => sum + time, 0);
                 }
                 modalityTotal += validTotal;
+                Object.keys(modalityCounts).forEach(key => { modalityCounts[key] += counts[key]; });
                 row.push(
                     ...trialValues,
                     counts.correct,
@@ -3154,7 +3414,12 @@ function buildWideModalitySheet(sessions, modality) {
             row.push(
                 modalityTotal,
                 allCorrectTimes.length ? Math.round(mean(allCorrectTimes)) : '',
-                allCorrectTimes.length >= 2 ? Math.round(sampleStdDev(allCorrectTimes)) : ''
+                allCorrectTimes.length >= 2 ? Math.round(sampleStdDev(allCorrectTimes)) : '',
+                modalityCounts.early,
+                modalityCounts.late,
+                modalityCounts.wrong,
+                modalityCounts.correct,
+                modalityCounts.miss
             );
             rows.push(row);
         });
@@ -3170,15 +3435,15 @@ function configureWideReactionWorksheet(sheet, sheetDefinition, xlsxLibrary) {
     const trialsPerTest = sheetDefinition.layout.trialsPerTest;
     const statisticCount = sheetDefinition.layout.statisticCount || 0;
     const blockWidth = trialsPerTest + statisticCount + 1;
-    const basicEnd = 3;
-    const firstBlockStart = 4;
+    const basicEnd = 4;
+    const firstBlockStart = 5;
     const firstBlockEnd = firstBlockStart + blockWidth - 1;
     const secondBlockStart = firstBlockEnd + 1;
     const secondBlockEnd = secondBlockStart + blockWidth - 1;
     const thirdBlockStart = secondBlockEnd + 1;
     const thirdBlockEnd = thirdBlockStart + blockWidth - 1;
     const overallStart = thirdBlockEnd + 1;
-    const lastColumn = overallStart + 2;
+    const lastColumn = overallStart + 7;
     const encodeRange = (startColumn, endColumn) => xlsxLibrary.utils.encode_range({ s: { r: 0, c: startColumn }, e: { r: 0, c: endColumn } });
     sheet['!merges'] = [
         encodeRange(0, basicEnd),
@@ -3198,7 +3463,7 @@ function configureWideReactionWorksheet(sheet, sheetDefinition, xlsxLibrary) {
     sheet['!cols'] = Array.from({ length: lastColumn + 1 }, (_, columnIndex) => ({
         wch: columnIndex === 0
             ? 24
-            : columnIndex <= 3
+            : columnIndex <= 4
                 ? 12
                 : columnIndex >= overallStart || summaryColumns.has(columnIndex)
                     ? 19
@@ -3260,6 +3525,9 @@ function loadGroupReport() {
     setText('lblGroupCorrectRejections', overall.correctRejections);
     setText('lblGroupFalseAlarms', overall.falseAlarms);
     setText('lblGroupEarlyResponses', overall.earlyResponses);
+    setText('lblGroupCorrectResponses', overall.correctResponses);
+    setText('lblGroupWrongResponses', overall.wrongResponses);
+    setText('lblGroupLateResponses', overall.lateResponses);
 
     const testFilter = document.getElementById('cfgGroupTestType')?.value || '';
     const rows = buildGroupReportEntries(sessions, testFilter).filter(row => row.classification !== 'الإجمالي');
@@ -3275,6 +3543,10 @@ function loadGroupReport() {
                 <td><strong>${escapeHtml(row.name)}</strong></td>
                 <td>${summary.trials}</td>
                 <td>${summary.practice}</td>
+                <td>${summary.correctResponses}</td>
+                <td>${summary.wrongResponses}</td>
+                <td>${summary.lateResponses}</td>
+                <td>${summary.misses}</td>
                 <td>${milliseconds(summary.mean)}</td>
                 <td>${milliseconds(summary.median)}</td>
                 <td>${summary.stdDev === null ? '—' : milliseconds(summary.stdDev)}</td>
@@ -3353,6 +3625,9 @@ class TestEngine {
         this.testType = testType;
         this.config = { ...DEFAULT_GENERAL_SETTINGS, ...deepClone(state.settings.general) };
         this.student = state.students.find(student => student.id === state.activeStudentId) || state.sessionStudent;
+        this.responseCategory = canonicalResponseCategory(this.student?.category);
+        this.responseLimits = getResponseLimits(this.responseCategory);
+        this.responseTimeoutMs = this.responseLimits.missed.to;
         this.formalTrialsList = this.buildTrialSequence(this.config.trialsCount);
         const practiceSeedCount = this.config.practiceOpenEnded
             ? Math.max(10, this.config.practiceTrialsCount || 0)
@@ -3375,6 +3650,7 @@ class TestEngine {
         this.feedbackTimer = null;
         this.advanceTimer = null;
         this.audioOnsetTimer = null;
+        this.activeAudioPlayback = null;
         this.inputMethods = new Set();
         this.deviceInfo = collectDeviceInfo();
         this.assetsReady = Promise.resolve();
@@ -3479,11 +3755,10 @@ class TestEngine {
             }
         }
 
-        if (this.config.randomOrder) {
-            for (let index = list.length - 1; index > 0; index--) {
-                const randomIndex = Math.floor(Math.random() * (index + 1));
-                [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
-            }
+        // ترتيب المثيرات عشوائي دائمًا ولا يظهر كخيار يمكن تعطيله.
+        for (let index = list.length - 1; index > 0; index--) {
+            const randomIndex = Math.floor(Math.random() * (index + 1));
+            [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
         }
         return list;
     }
@@ -3595,8 +3870,8 @@ class TestEngine {
         document.getElementById('stimulusPlaceholder').innerHTML = '';
         this.renderOnScreenGuides();
 
-        const minWait = Number(this.config.minLatency) * 1000;
-        const maxWait = Math.max(minWait, Number(this.config.maxLatency) * 1000);
+        const minWait = Number(this.config.minLatencyMs);
+        const maxWait = Math.max(minWait, Number(this.config.maxLatencyMs));
         const waitTime = minWait + Math.random() * (maxWait - minWait);
         this.trialTimer = setTimeout(() => this.showStimulus(), waitTime);
     }
@@ -3657,8 +3932,12 @@ class TestEngine {
         } else {
             placeholder.innerHTML = '<div class="auditory-headphone-guide" style="font-size:72px;color:var(--color-primary);">🎧</div>';
             try {
-                const playback = await window.appAudio?.playSoundByName(this.currentStimulusObject.val);
-                if (this.isStopped || !this.waitingForStimulus) return;
+                const playback = await window.appAudio?.playSoundByName(this.currentStimulusObject.val, this.responseTimeoutMs / 1000);
+                if (this.isStopped || !this.waitingForStimulus) {
+                    playback?.stop?.();
+                    return;
+                }
+                this.activeAudioPlayback = playback || null;
                 const onset = playback?.onsetPerformanceTime || performance.now();
                 const delay = Math.max(0, onset - performance.now());
                 this.audioOnsetTimer = setTimeout(() => this.activateStimulus(onset), delay);
@@ -3676,10 +3955,10 @@ class TestEngine {
         this.trialActive = true;
         this.waitingForStimulus = false;
         const placeholder = document.getElementById('stimulusPlaceholder');
-        this.stimulusTimer = setTimeout(() => { placeholder.innerHTML = ''; }, Number(this.config.stimulusDuration) * 1000);
+        this.stimulusTimer = setTimeout(() => { placeholder.innerHTML = ''; }, this.responseTimeoutMs);
         this.feedbackTimer = setTimeout(() => {
             if (this.trialActive) this.handleResponse('timeout', 'system');
-        }, Number(this.config.maxResponseTime) * 1000);
+        }, this.responseTimeoutMs);
     }
 
     handleResponse(pressedKey, inputMethod = 'keyboard') {
@@ -3691,14 +3970,19 @@ class TestEngine {
         clearTimeout(this.stimulusTimer);
         clearTimeout(this.feedbackTimer);
         clearTimeout(this.audioOnsetTimer);
+        this.activeAudioPlayback?.stop?.();
+        this.activeAudioPlayback = null;
         document.getElementById('stimulusPlaceholder').innerHTML = '';
 
         const responseTime = early ? null : (performance.now() - this.stimulusOnTime) / 1000;
         let result;
         if (early) result = 'early';
-        else if (this.currentRequiredKey === 'ignore') result = pressedKey === 'timeout' ? 'correct-rejection' : 'false-alarm';
-        else if (pressedKey === 'timeout') result = 'miss';
-        else if (pressedKey === this.currentRequiredKey) result = 'correct';
+        else if (pressedKey === 'timeout') result = this.currentRequiredKey === 'ignore' ? 'correct-rejection' : 'miss';
+        else if (responseTime * 1000 < EARLY_RESPONSE_LIMIT_MS) result = 'early';
+        else if (this.currentRequiredKey === 'ignore') result = 'false-alarm';
+        else if (pressedKey === this.currentRequiredKey) {
+            result = classifyResponseLatency(responseTime, this.responseLimits) === 'correct' ? 'correct' : 'late';
+        }
         else result = 'wrong';
 
         const latency = (pressedKey === 'timeout' || early) ? null : responseTime;
@@ -3724,7 +4008,7 @@ class TestEngine {
         this.showTrialFeedback(result, latency);
 
         const feedbackEnabled = this.mode === 'practice' ? this.config.practiceFeedback : this.config.testFeedback;
-        const delay = Number(this.config.interStimulus) * 1000 + (feedbackEnabled ? 400 : 0);
+        const delay = Number(this.config.interStimulusMs) + (feedbackEnabled ? 400 : 0);
         this.advanceTimer = setTimeout(() => {
             this.currentTrialIndex += 1;
             this.runTrial();
@@ -3771,8 +4055,9 @@ class TestEngine {
         const missCount = this.results.filter(result => result.result === 'miss').length;
         const falseAlarmCount = this.results.filter(result => result.result === 'false-alarm').length;
         const earlyCount = this.results.filter(result => result.result === 'early').length;
-        const wrongCount = wrongChoiceCount + falseAlarmCount + earlyCount;
-        const errorCount = wrongCount + missCount;
+        const lateCount = this.results.filter(result => result.result === 'late').length;
+        const wrongCount = wrongChoiceCount + falseAlarmCount;
+        const errorCount = wrongCount + earlyCount + lateCount + missCount;
         const correctLatencies = this.results
             .filter(result => result.result === 'correct' && result.latency !== null)
             .map(result => result.latency);
@@ -3818,6 +4103,7 @@ class TestEngine {
             missCount,
             falseAlarmCount,
             earlyCount,
+            lateCount,
             errorCount,
             accuracy,
             errorRate,
@@ -3825,6 +4111,7 @@ class TestEngine {
             practiceTrials: deepClone(this.practiceResults),
             settingsSnapshot: {
                 general: deepClone(this.config),
+                responses: { [this.responseCategory]: deepClone(this.responseLimits) },
                 instruction: state.settings.instructions[this.testType] || '',
                 stimuli: deepClone(this.getStimuliConfig())
             },
@@ -3839,6 +4126,12 @@ class TestEngine {
         state.activeStudentId = session.studentId || state.activeStudentId;
         saveData();
         updateUI();
+        saveCompletedTestToCloud(student, session)
+            .then(() => showDataStatus('تم حفظ النتيجة على السحابة بنجاح.', 'success'))
+            .catch(error => {
+                console.error('Immediate cloud result save failed:', error);
+                showDataStatus('لم يتم تأكيد الحفظ على السحابة. تأكد من الإنترنت ونشر قواعد Firebase.', 'error');
+            });
         document.getElementById('trialFeedbackOverlay').style.display = 'none';
 
         if (state.testQueue.length > 0) {
@@ -3865,6 +4158,8 @@ class TestEngine {
         clearTimeout(this.feedbackTimer);
         clearTimeout(this.advanceTimer);
         clearTimeout(this.audioOnsetTimer);
+        this.activeAudioPlayback?.stop?.();
+        this.activeAudioPlayback = null;
         this.trialActive = false;
         this.waitingForStimulus = false;
         this.closeOverlay();

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, cp, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const projectRoot = resolve(process.cwd());
@@ -18,4 +18,6 @@ for (const [source, destination] of files) {
   await copyFile(resolve(projectRoot, source), resolve(outputDirectory, destination));
 }
 
-console.log(`Built ${files.length} static files in ${outputDirectory}`);
+await cp(resolve(projectRoot, 'assets'), resolve(outputDirectory, 'assets'), { recursive: true });
+
+console.log(`Built ${files.length} static files and bundled audio assets in ${outputDirectory}`);

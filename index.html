@@ -56,12 +56,8 @@
                 </a>
             </nav>
 
-            <!-- Night Mode & Cloud Status at bottom of sidebar -->
+            <!-- Night Mode & User Info at bottom of sidebar -->
             <div class="sidebar-footer">
-                <div class="cloud-status-badge" id="cloudStatusBadge" title="انقر لعرض تفاصيل المزامنة السحابية">
-                    <span class="status-indicator-dot" id="cloudStatusDot"></span>
-                    <span class="status-text" id="cloudStatusText">جاري الاتصال بالسحابة...</span>
-                </div>
                 <button class="night-mode-toggle" id="nightModeBtn">
                     <span class="toggle-icon">
                         <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" class="sun-icon"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -139,7 +135,7 @@
                                         <th>الطفل</th>
                                         <th>نوع الاختبار</th>
                                         <th>التاريخ والوقت</th>
-                                        <th>متوسط الرجع</th>
+                                        <th>متوسط الرجع (مللي ثانية)</th>
                                         <th>الدقة</th>
                                     </tr>
                                 </thead>
@@ -255,18 +251,18 @@
                         </div>
                         <div class="styled-form">
                             <div class="form-group">
-                                <label for="tsStudentName">اسم الطالب رباعي <span class="optional-label">(اختياري)</span></label>
-                                <input type="text" id="tsStudentName" placeholder="مثال: أحمد علي حسن">
+                                <label for="tsStudentName">اسم الطالب رباعي <span class="required-label">(إجباري)</span></label>
+                                <input type="text" id="tsStudentName" placeholder="مثال: أحمد علي حسن محمد" required>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="tsStudentAge">العمر (بالسنوات) <span class="optional-label">(اختياري)</span></label>
-                                    <input type="number" id="tsStudentAge" min="1" max="120" placeholder="مثال: 8">
+                                    <label for="tsStudentAge">العمر (بالسنوات) <span class="required-label">(إجباري)</span></label>
+                                    <input type="number" id="tsStudentAge" min="1" max="120" placeholder="مثال: 8" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="tsStudentGender">الجنس <span class="optional-label">(اختياري)</span></label>
-                                    <select id="tsStudentGender">
-                                        <option value="">اختر...</option>
+                                    <label for="tsStudentGender">الجنس <span class="required-label">(إجباري)</span></label>
+                                    <select id="tsStudentGender" required>
+                                        <option value="" selected disabled>اختر...</option>
                                         <option value="ذكر">ذكر</option>
                                         <option value="أنثى">أنثى</option>
                                     </select>
@@ -277,14 +273,14 @@
                                 <input type="number" id="tsStudentIQ" min="30" max="160" placeholder="مثال: 95">
                             </div>
                             <div class="form-group">
-                                <label for="tsStudentCategory">الفئة <span class="optional-label">(اختياري)</span></label>
-                                <select id="tsStudentCategory">
-                                    <option value="">غير محدد</option>
+                                <label for="tsStudentCategory">الفئة <span class="required-label">(إجباري)</span></label>
+                                <select id="tsStudentCategory" required>
+                                    <option value="" selected disabled>اختر الفئة...</option>
                                     <option value="إعاقة عقلية">إعاقة عقلية</option>
                                     <option value="متلازمة داون">متلازمة داون</option>
                                     <option value="اضطراب طيف التوحد">اضطراب طيف التوحد</option>
                                     <option value="الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد">الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد</option>
-                                    <option value="اضطراب فرط الحركة وتشتت الانتباه">اضطراب فرط الحركة وتشتت الانتباه</option>
+                                    <option value="اضطراب فرط الحركة وتشتت الانتباه ADHD">اضطراب فرط الحركة وتشتت الانتباه ADHD</option>
                                     <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
                                     <option value="طبيعي">طبيعي</option>
                                 </select>
@@ -415,6 +411,7 @@
                     <!-- Tab buttons -->
                     <div class="settings-tab-headers">
                         <button class="settings-tab-btn active" data-tab="general-settings">إعدادات عامة</button>
+                        <button class="settings-tab-btn" data-tab="response-settings">إعدادات الاستجابة</button>
                         <button class="settings-tab-btn" data-tab="stimuli-settings">إعدادات المثيرات</button>
                         <button class="settings-tab-btn" data-tab="instructions-settings">إعدادات تعليمات الاختبار</button>
                     </div>
@@ -423,22 +420,22 @@
                     <div class="settings-tab-content active" id="general-settings">
                         <form id="generalSettingsForm" class="settings-form general-settings-modern">
                             <div class="settings-grid-layout">
-                                <div class="form-group-card">
+                                <div class="form-group-card settings-primary-count-card">
+                                    <label for="cfgPracticeTrialsCount">عدد المحاولات التجريبية (التدريبية)</label>
+                                    <input type="number" id="cfgPracticeTrialsCount" value="4" min="0" max="100">
+                                    <span class="help-text">تُجرى قبل الاختبار الرسمي ولا تدخل في حساب النتائج أو الإحصاءات.</span>
+                                </div>
+                                <div class="form-group-card settings-primary-count-card">
                                     <label for="cfgTrialsCount">عدد المحاولات الرسمية</label>
                                     <input type="number" id="cfgTrialsCount" value="20" min="1" max="200">
-                                    <span class="help-text">هي المحاولات الوحيدة التي تدخل في حساب النتيجة الرسمية.</span>
+                                    <span class="help-text">هي المحاولات التي تدخل في حساب النتيجة الرسمية.</span>
                                 </div>
                                 <div class="form-group-card toggle-card">
                                     <div class="toggle-container">
                                         <label for="cfgPracticeEnabled">تفعيل المحاولات التدريبية</label>
                                         <input type="checkbox" id="cfgPracticeEnabled" checked>
                                     </div>
-                                    <span class="help-text">تُجرى قبل الاختبار الفعلي ولا تدخل في حساب النتائج أو الإحصاءات.</span>
-                                </div>
-                                <div class="form-group-card">
-                                    <label for="cfgPracticeTrialsCount">عدد المحاولات التدريبية</label>
-                                    <input type="number" id="cfgPracticeTrialsCount" value="3" min="0" max="100">
-                                    <span class="help-text">تُحفظ منفصلة ولا تدخل في المتوسط أو الدقة أو الانحراف المعياري.</span>
+                                    <span class="help-text">يمكن إيقاف التدريب عند الحاجة، مع بقاء العدد الافتراضي أربع محاولات.</span>
                                 </div>
                                 <div class="form-group-card toggle-card">
                                     <div class="toggle-container">
@@ -462,46 +459,62 @@
                                     <span class="help-text">يفضل إيقافها افتراضياً في القياس الفعلي لتقليل أثر التعلم بين المحاولات.</span>
                                 </div>
                                 <div class="form-group-card">
-                                    <label for="cfgMinLatency">الزمن الأدنى لانتظار المثير (ثانية)</label>
-                                    <input type="number" id="cfgMinLatency" value="0.5" step="0.1" min="0.1">
+                                    <label for="cfgMinLatency">الزمن الأدنى لانتظار المثير (مللي ثانية)</label>
+                                    <input type="number" id="cfgMinLatency" value="500" step="50" min="0">
                                     <span class="help-text">أقل وقت انتظار عشوائي قبل ظهور المثير.</span>
                                 </div>
                                 <div class="form-group-card">
-                                    <label for="cfgMaxLatency">الزمن الأقصي لانتظار المثير (ثانية)</label>
-                                    <input type="number" id="cfgMaxLatency" value="5.0" step="0.1" min="0.5">
+                                    <label for="cfgMaxLatency">الزمن الأقصى لانتظار المثير (مللي ثانية)</label>
+                                    <input type="number" id="cfgMaxLatency" value="1500" step="50" min="0">
                                     <span class="help-text">أقصى وقت انتظار عشوائي قبل ظهور المثير.</span>
                                 </div>
                                 <div class="form-group-card">
-                                    <label for="cfgStimulusDuration">مدة ظهور المثير (ثانية)</label>
-                                    <input type="number" id="cfgStimulusDuration" value="1.0" step="0.1" min="0.1">
-                                    <span class="help-text">الوقت الذي يظل فيه المثير معروضاً على الشاشة.</span>
-                                </div>
-                                <div class="form-group-card">
-                                    <label for="cfgInterStimulus">الفاصل الزمني بين المثيرات (ثانية)</label>
-                                    <input type="number" id="cfgInterStimulus" value="1.0" step="0.1" min="0.1">
+                                    <label for="cfgInterStimulus">الفاصل الزمني بين المثيرات (مللي ثانية)</label>
+                                    <input type="number" id="cfgInterStimulus" value="1000" step="50" min="0">
                                     <span class="help-text">الزمن الفاصل بعد الاستجابة وقبل الانتقال للمحاولة التالية.</span>
-                                </div>
-                                <div class="form-group-card">
-                                    <label for="cfgMaxResponseTime">الحد الأقصى لزمن الاستجابة (ثانية)</label>
-                                    <input type="number" id="cfgMaxResponseTime" value="3.0" step="0.1" min="0.5">
-                                    <span class="help-text">الوقت الكلي المتاح للاستجابة قبل احتساب المحاولة كاستجابة فائتة.</span>
-                                </div>
-                                <div class="form-group-card toggle-card">
-                                    <div class="toggle-container">
-                                        <label for="cfgRandomOrder">ترتيب عشوائي للمثيرات</label>
-                                        <input type="checkbox" id="cfgRandomOrder" checked>
-                                    </div>
-                                    <span class="help-text">خلط ترتيب المثيرات عشوائياً لتقليل قدرة الطالب على توقع المثير التالي.</span>
                                 </div>
                             </div>
                             <div class="form-actions">
                                 <button type="button" class="primary-btn" id="saveGeneralSettingsBtn">حفظ الإعدادات العامة</button>
-                                <button type="button" class="secondary-btn" id="resetGeneralSettingsBtn">استعادة الافتراضي</button>
+                                <button type="button" class="secondary-btn" id="resetGeneralSettingsBtn">إعادة ضبط الأرقام الافتراضية</button>
                             </div>
                         </form>
                     </div>
 
-                    <!-- Tab Content 2: Stimuli Settings -->
+                    <!-- Tab Content 2: Response Settings -->
+                    <div class="settings-tab-content" id="response-settings">
+                        <div class="response-settings-intro">
+                            <h4>إعدادات الاستجابة</h4>
+                            <p>تحدد الحدود الزمنية حسب فئة الحالة. الاستجابة المبكرة ثابتة، والحد الأقصى لنطاق الاستجابة الفائتة هو نهاية انتظار الاستجابة ومدة بقاء المثير.</p>
+                        </div>
+                        <div class="response-settings-table-wrap">
+                            <table class="response-settings-table">
+                                <thead>
+                                    <tr>
+                                        <th rowspan="2">الفئة</th>
+                                        <th rowspan="2">الاستجابة المبكرة<br><small>(مللي ثانية)</small></th>
+                                        <th colspan="2">الاستجابة الصحيحة</th>
+                                        <th colspan="2">الاستجابة المتأخرة</th>
+                                        <th colspan="2">الاستجابة الفائتة</th>
+                                    </tr>
+                                    <tr>
+                                        <th>من</th><th>إلى</th>
+                                        <th>من</th><th>إلى</th>
+                                        <th>من</th><th>إلى</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="responseSettingsTableBody"></tbody>
+                            </table>
+                        </div>
+                        <p class="response-settings-note">إذا انتهت قيمة «إلى» في الاستجابة الفائتة دون ضغط، تُسجل المحاولة «استجابة فائتة» بلا زمن استجابة، ولا تدخل في المتوسط أو الانحراف المعياري.</p>
+                        <div class="settings-validation-error" id="responseSettingsError" role="alert" hidden></div>
+                        <div class="form-actions">
+                            <button type="button" class="primary-btn" id="saveResponseSettingsBtn">حفظ إعدادات الاستجابة</button>
+                            <button type="button" class="secondary-btn" id="resetResponseSettingsBtn">استعادة الافتراضي</button>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content 3: Stimuli Settings -->
                     <div class="settings-tab-content" id="stimuli-settings">
                         <div class="form-group" style="max-width: 350px; margin-bottom: 20px;">
                             <label for="cfgStimuliTestType">اختر نوع الاختبار للتعديل:</label>
@@ -535,31 +548,13 @@
                             </div>
                         </div>
                         
-                        <!-- Stimuli Mapping Table -->
-                        <div style="margin-top: 24px;">
-                            <h5 style="margin-bottom: 12px; font-weight: 800;">جدول توزيع ومطابقة مفاتيح الاستجابة للمثيرات</h5>
-                            <table class="stimuli-mapping-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                                <thead>
-                                    <tr style="background-color: var(--bg-input);">
-                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">المثير</th>
-                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">نوع المثير</th>
-                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">مفتاح الاستجابة المتوقع</th>
-                                        <th style="padding: 10px; border: 1px solid var(--border-color); text-align: right;">الحالة</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="stimuliMappingTableBody">
-                                    <!-- Rendered dynamically in JS -->
-                                </tbody>
-                            </table>
-                        </div>
-
                         <div class="form-actions" style="margin-top: 20px;">
                             <button type="button" class="primary-btn" id="saveStimuliSettingsBtn">حفظ إعدادات المثيرات</button>
                             <button type="button" class="secondary-btn" id="resetStimuliSettingsBtn">استعادة الافتراضي</button>
                         </div>
                     </div>
 
-                    <!-- Tab Content 3: Instructions Settings -->
+                    <!-- Tab Content 4: Instructions Settings -->
                     <div class="settings-tab-content" id="instructions-settings">
                         <form id="instructionsSettingsForm" class="settings-form">
                             <div class="settings-grid-layout">
@@ -747,11 +742,9 @@
                             <div class="metric-card"><div class="card-title">المحاولات الرسمية</div><div class="card-val" id="lblValTotalTrials">0</div><div class="card-unit">محاولة محتسبة</div></div>
                             <div class="metric-card" style="border-top: 4px solid #74b9ff;"><div class="card-title">المحاولات التدريبية</div><div class="card-val" id="lblValPracticeTrials">0</div><div class="card-unit">غير محتسبة</div></div>
                             <div class="metric-card" style="border-top: 4px solid #2ed573;"><div class="card-title">الصحيح الكلي</div><div class="card-val" id="lblValCorrect">0</div><div class="card-percent" id="lblValCorrectPct">(0%)</div></div>
-                            <div class="metric-card" style="border-top: 4px solid #55efc4;"><div class="card-title">التجاهل الصحيح</div><div class="card-val" id="lblValCorrectRejection">0</div><div class="card-unit">مشتتات تم تجاهلها</div></div>
                             <div class="metric-card" style="border-top: 4px solid #1e90ff;"><div class="card-title">اختيار خاطئ</div><div class="card-val" id="lblValWrong">0</div><div class="card-percent" id="lblValWrongPct">(0%)</div></div>
                             <div class="metric-card" style="border-top: 4px solid #9b59b6;"><div class="card-title">الاستجابات الفائتة</div><div class="card-val" id="lblValMiss">0</div><div class="card-percent" id="lblValMissPct">(0%)</div></div>
-                            <div class="metric-card" style="border-top: 4px solid #e74c3c;"><div class="card-title">الضغط الخاطئ على المشتت</div><div class="card-val" id="lblValFalseAlarm">0</div><div class="card-percent" id="lblValFalseAlarmPct">(0%)</div></div>
-                            <div class="metric-card" style="border-top: 4px solid #e17055;"><div class="card-title">استجابة مبكرة</div><div class="card-val" id="lblValEarly">0</div><div class="card-percent" id="lblValEarlyPct">(0%)</div></div>
+                            <div class="metric-card" style="border-top: 4px solid #f39c12;"><div class="card-title">استجابة متأخرة</div><div class="card-val" id="lblValLate">0</div><div class="card-percent" id="lblValLatePct">(0%)</div></div>
                             <div class="metric-card" style="border-top: 4px solid #00b894;"><div class="card-title">الدقة</div><div class="card-val" id="lblValAccuracy">0%</div><div class="card-unit">من الرسمية فقط</div></div>
                             <div class="metric-card" style="border-top: 4px solid #d63031;"><div class="card-title">نسبة الخطأ</div><div class="card-val" id="lblValErrorRate">0%</div><div class="card-unit">من الرسمية فقط</div></div>
                             <div class="metric-card" style="border-top: 4px solid var(--color-primary);"><div class="card-title">متوسط زمن الاستجابة</div><div class="card-val" id="lblValAvgTime">0</div><div class="card-unit">مللي ثانية - الصحيحة فقط</div></div>
@@ -891,7 +884,7 @@
                                     <option value="متلازمة داون">متلازمة داون</option>
                                     <option value="اضطراب طيف التوحد">اضطراب طيف التوحد</option>
                                     <option value="الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد">الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد</option>
-                                    <option value="اضطراب فرط الحركة وتشتت الانتباه">اضطراب فرط الحركة وتشتت الانتباه</option>
+                                    <option value="اضطراب فرط الحركة وتشتت الانتباه ADHD">اضطراب فرط الحركة وتشتت الانتباه ADHD</option>
                                     <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
                                     <option value="طبيعي">طبيعي</option>
                                 </select>
@@ -942,9 +935,9 @@
                             <div class="metric-card"><div class="card-title">متوسط الدقة</div><div class="card-val" id="lblGroupAvgAccuracy">0%</div><div class="card-unit">صحيحة</div></div>
                             <div class="metric-card"><div class="card-title">نسبة الخطأ</div><div class="card-val" id="lblGroupErrorPct">0%</div><div class="card-unit">خطأ</div></div>
                             <div class="metric-card"><div class="card-title">نسبة الاستجابات الفائتة</div><div class="card-val" id="lblGroupMissPct">0%</div><div class="card-unit">عدم استجابة</div></div>
-                            <div class="metric-card"><div class="card-title">التجاهل الصحيح</div><div class="card-val" id="lblGroupCorrectRejections">0</div><div class="card-unit">محاولة</div></div>
-                            <div class="metric-card"><div class="card-title">الضغط الخاطئ على المشتت</div><div class="card-val" id="lblGroupFalseAlarms">0</div><div class="card-unit">محاولة</div></div>
-                            <div class="metric-card"><div class="card-title">الاستجابات المبكرة</div><div class="card-val" id="lblGroupEarlyResponses">0</div><div class="card-unit">محاولة</div></div>
+                            <div class="metric-card"><div class="card-title">الاستجابات الصحيحة</div><div class="card-val" id="lblGroupCorrectResponses">0</div><div class="card-unit">محاولة</div></div>
+                            <div class="metric-card"><div class="card-title">الاستجابات الخاطئة</div><div class="card-val" id="lblGroupWrongResponses">0</div><div class="card-unit">محاولة</div></div>
+                            <div class="metric-card"><div class="card-title">الاستجابات المتأخرة</div><div class="card-val" id="lblGroupLateResponses">0</div><div class="card-unit">محاولة</div></div>
                         </div>
 
                         <div class="report-table-section" style="margin-bottom: 25px;">
@@ -957,6 +950,10 @@
                                             <th>نوع الاختبار</th>
                                             <th>الرسمية</th>
                                             <th>التدريب</th>
+                                            <th>الصحيحة</th>
+                                            <th>الخاطئة</th>
+                                            <th>المتأخرة</th>
+                                            <th>الفائتة</th>
                                             <th>متوسط زمن الاستجابة</th>
                                             <th>وسيط زمن الاستجابة</th>
                                             <th>الانحراف المعياري</th>
@@ -1110,6 +1107,7 @@
 
                 <!-- Stimulus Area -->
                 <div class="stimulus-display-box" id="stimulusDisplayBox">
+                    <div class="fixation-cross" aria-hidden="true"></div>
                     <div class="stimulus-placeholder" id="stimulusPlaceholder">
                         <!-- Visually rendered shapes/colors or auditory headphone symbol -->
                     </div>
@@ -1125,7 +1123,7 @@
                     <div class="feedback-badge" id="trialFeedbackBadge">
                         <span class="feedback-icon" id="trialFeedbackIcon">✓</span>
                         <span class="feedback-text" id="trialFeedbackText">إجابة صحيحة</span>
-                        <span class="feedback-latency" id="trialFeedbackLatency">0.85 ثانية</span>
+                        <span class="feedback-latency" id="trialFeedbackLatency">850 مللي ثانية</span>
                     </div>
                 </div>
 
@@ -1162,9 +1160,9 @@
                     <div class="sum-card"><span class="sum-lbl">النتائج الصحيحة</span><strong id="sumCorrectCount" class="green-text">0</strong></div>
                     <div class="sum-card"><span class="sum-lbl">الدقة</span><strong id="sumAccuracyPct">0%</strong></div>
                     <div class="sum-card"><span class="sum-lbl">نسبة الخطأ</span><strong id="sumErrorPct">0%</strong></div>
-                    <div class="sum-card"><span class="sum-lbl">متوسط زمن الاستجابة</span><strong id="sumAvgLatency">0.00 ث</strong></div>
-                    <div class="sum-card"><span class="sum-lbl">وسيط زمن الاستجابة</span><strong id="sumMedianLatency">0.00 ث</strong></div>
-                    <div class="sum-card"><span class="sum-lbl">الانحراف المعياري</span><strong id="sumStdDev">0.00 ث</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">متوسط زمن الاستجابة</span><strong id="sumAvgLatency">0 مللي ثانية</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">وسيط زمن الاستجابة</span><strong id="sumMedianLatency">0 مللي ثانية</strong></div>
+                    <div class="sum-card"><span class="sum-lbl">الانحراف المعياري</span><strong id="sumStdDev">0 مللي ثانية</strong></div>
                 </div>
                 <div class="arena-actions">
                     <button class="primary-btn" id="summaryViewReportBtn">عرض التقرير المفصل</button>
