@@ -8,7 +8,7 @@
 // ==========================================================================
 // Firebase web configuration (the API key is a public client identifier; access is enforced by the security rules).
 const firebaseConfig = {
-    apiKey: "AIzaSyCgJbFMw7MnwgAxjYrZilw2onLiHsuD5jM",
+    apiKey: "AIzaSyCgJbfMw7MnwgAxjYrZilw2onLiHsuD5jM",
     authDomain: "srt-id-ba9e8.firebaseapp.com",
     projectId: "srt-id-ba9e8",
     storageBucket: "srt-id-ba9e8.firebasestorage.app",
