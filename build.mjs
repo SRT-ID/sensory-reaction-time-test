@@ -11,7 +11,8 @@ const files = [
   ['index.html', 'index.html'],
   ['styles.css', 'styles.css'],
   ['app.js', 'app.js'],
-  ['audio.js', 'audio.js']
+  ['audio.js', 'audio.js'],
+  ['sw.js', 'sw.js']
 ];
 
 for (const [source, destination] of files) {
