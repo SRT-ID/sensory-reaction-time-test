@@ -250,6 +250,10 @@
                                 <label for="tsCenter">اسم المؤسسة / المركز <span class="optional-label">(اختياري)</span></label>
                                 <input type="text" id="tsCenter" placeholder="مثال: مركز الأمل للتأهيل">
                             </div>
+                            <div class="form-group">
+                                <label for="tsSessionDate">تاريخ التطبيق <span class="optional-label">(اختياري)</span></label>
+                                <input type="date" id="tsSessionDate" lang="en" dir="ltr">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -489,8 +493,8 @@
                                 </div>
                             </div>
                             <div class="form-actions" style="margin-top: 20px;">
-                                <button type="button" class="primary-btn" id="saveInstructionsSettingsBtn">حفظ تعليمات الاختبار</button>
-                                <button type="button" class="secondary-btn" id="resetInstructionsSettingsBtn">استعادة الافتراضي</button>
+                                <button type="button" class="primary-btn" id="saveInstructionsSettingsBtn" hidden>حفظ تعليمات الاختبار</button>
+                                <button type="button" class="secondary-btn" id="resetInstructionsSettingsBtn" hidden>استعادة الافتراضي</button>
                             </div>
                         </form>
                     </div>
@@ -629,7 +633,7 @@
                                 <strong id="lblReportSessionNum" style="font-size: 16px; color: var(--text-main);">--</strong>
                             </div>
                             <div class="info-metric-item" style="text-align: center;">
-                                <span style="font-size: 12px; color: var(--text-muted); display: block;">تم التنفيذ في</span>
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">تاريخ التطبيق</span>
                                 <strong id="lblReportDateTime" style="font-size: 14px; color: var(--text-main);">--</strong>
                             </div>
                             <div class="info-metric-item" style="text-align: center;">
@@ -760,11 +764,11 @@
                     <div class="session-selector-bar no-print" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) auto; gap: 15px; align-items: end; margin-bottom: 20px; background: var(--bg-card); padding: 15px; border-radius: 10px; box-shadow: var(--shadow-sm);">
                         <div class="selector-field">
                             <label for="cfgGroupDateFrom" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">تاريخ البداية:</label>
-                            <input type="date" id="cfgGroupDateFrom" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                            <input type="date" id="cfgGroupDateFrom" lang="en" dir="ltr" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
                         </div>
                         <div class="selector-field">
                             <label for="cfgGroupDateTo" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">تاريخ النهاية:</label>
-                            <input type="date" id="cfgGroupDateTo" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
+                            <input type="date" id="cfgGroupDateTo" lang="en" dir="ltr" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
                         </div>
                         <div class="selector-field">
                             <label for="cfgGroupGender" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">الجنس:</label>
@@ -1094,7 +1098,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
-    <script src="audio.js?v=20261024-14"></script>
-    <script src="app.js?v=20261024-14"></script>
+    <script src="audio.js?v=20261024-13"></script>
+    <script src="app.js?v=20261024-13"></script>
 </body>
 </html>

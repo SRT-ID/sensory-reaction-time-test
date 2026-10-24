@@ -36,10 +36,7 @@ let cloudPushPromise = null;
 let deferredRemoteSync = false;
 let groupReportRenderTimer = null;
 let realtimeUiRefreshTimer = null;
-const APP_CACHE_VERSION = '20261024-14';
-// هذا الكود مؤقتًا داخل الواجهة بناءً على طلب صاحب التطبيق. لا يظهر للمستخدم
-// في أي زر أو رسالة، وسيُنقل لاحقًا إلى صلاحيات دخول آمنة.
-const DELETION_CONFIRMATION_CODE = '2026';
+const APP_CACHE_VERSION = '20261024-13';
 let pendingRealtimeUiRefresh = { settingsChanged: false, recordsChanged: false };
 
 // Keep a lightweight local record of what has already been confirmed in the
@@ -96,16 +93,6 @@ function activateFirebaseUser(user) {
     return user;
 }
 
-function requestDeletionAuthorization() {
-    const enteredCode = window.prompt('أدخل كود الحذف للتأكيد:');
-    if (enteredCode === null) return false;
-    if (enteredCode !== DELETION_CONFIRMATION_CODE) {
-        alert('كود الحذف غير صحيح.');
-        return false;
-    }
-    return true;
-}
-
 // Global State
 const state = {
     students: [],
@@ -131,12 +118,12 @@ const state = {
             'موحد': { correct: { from: 200, to: 4000 }, late: { from: 4001, to: 4001 }, missed: { from: 4002, to: 4002 } }
         },
         instructions: {
-            'visual-simple': "ستظهر دائرة <b>خضراء</b> في وسط الشاشة.<br>عند ظهورها اضغط زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.",
-            'visual-discriminative': "ستظهر دوائر بألوان مختلفة في وسط الشاشة.<br>اضغط زر <b>المسافة (Spacebar)</b> فقط عند ظهور الدائرة <b>الخضراء</b>.<br>تجاهل الدوائر <b>الحمراء والزرقاء والصفراء</b> ولا تضغط أي زر عند ظهورها.",
-            'visual-choice': "ستظهر دوائر ملونة في وسط الشاشة.<br>عند ظهور الدائرة <b>الخضراء</b> اضغط سهم <b>أعلى (↑)</b>.<br>عند ظهور الدائرة <b>الزرقاء</b> اضغط سهم <b>أسفل (↓)</b>.<br>عند ظهور الدائرة <b>الصفراء</b> اضغط سهم <b>يمين (→)</b>.",
-            'auditory-simple': "ستسمع صوت <b>الكلب</b>.<br>عند سماع صوت الكلب اضغط زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.",
-            'auditory-discriminative': "ستسمع صوتَي <b>الكلب</b> و<b>القطة</b>.<br>اضغط زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة ولا تضغط أي زر عند سماعه.",
-            'auditory-choice': "ستسمع صوتَي <b>الكلب</b> و<b>القطة</b>.<br>عند سماع صوت الكلب اضغط المفتاح <b>A</b>.<br>عند سماع صوت القطة اضغط المفتاح <b>B</b>."
+            'visual-simple': "ستظهر دائرة خضراء في وسط الشاشة.<br>عند ظهور الدائرة اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تظهر الدائرة.",
+            'visual-discriminative': "ستظهر ألوان مختلفة في وسط الشاشة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند ظهور الدائرة الخضراء.<br>تجاهل الألوان الأخرى (الحمراء والزرقاء والصفراء) ولا تضغط على أي زر.",
+            'visual-choice': "ستظهر مثيرات بصرية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للمثير بأسرع ما يمكن.",
+            'auditory-simple': "ستسمع صوت كلب حقيقيًا.<br>عند سماع الصوت اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تسمع الصوت.",
+            'auditory-discriminative': "ستسمع أصوات حيوانات حقيقية مختلفة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة ولا تضغط على أي زر.",
+            'auditory-choice': "ستسمع مثيرات سمعية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للصوت بأسرع ما يمكن."
         },
         stimuli: {
             visualSimple: {
@@ -206,7 +193,6 @@ const LEGACY_CATEGORY_ALIASES = Object.freeze({
 });
 
 const DEFAULT_INSTRUCTIONS = Object.freeze(deepClone(state.settings.instructions));
-const INSTRUCTION_STIMULI_VERSION = 1;
 
 const TEST_TYPES = [
     'visual-simple',
@@ -260,15 +246,8 @@ function escapeHtml(value) {
 
 function sanitizeInstructionHtml(value) {
     return escapeHtml(value)
-        .replace(/\r?\n/g, '<br>')
         .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
         .replace(/&lt;(\/)?(b|strong|ul|ol|li)&gt;/gi, '<$1$2>');
-}
-
-function instructionTextForEditor(value) {
-    return String(value || '')
-        .replace(/<br\s*\/?\s*>/gi, '\n')
-        .replace(/<\/?(b|strong)>/gi, '');
 }
 
 function safeNumber(value, fallback = null) {
@@ -856,12 +835,6 @@ function migrateLoadedState() {
         state.settings.instructions['auditory-choice'] = DEFAULT_INSTRUCTIONS['auditory-choice'];
         state.settings.realAudioCatalogVersion = 4;
     }
-    // Apply the six instructions that match the currently configured default
-    // stimuli once.  After this, the specialist's saved manual edits stay intact.
-    if (state.settings.instructionsStimuliVersion !== INSTRUCTION_STIMULI_VERSION) {
-        state.settings.instructions = deepClone(DEFAULT_INSTRUCTIONS);
-        state.settings.instructionsStimuliVersion = INSTRUCTION_STIMULI_VERSION;
-    }
     // Preserve saved custom settings. Defaults fill only missing test settings;
     // earlier code reset both objects on every startup.
     state.settings.stimuli = normalizeStimuliSettings(state.settings.stimuli);
@@ -1050,8 +1023,7 @@ async function syncFromFirestore(writeBack = false) {
                     general: { ...state.settings.general, ...(remoteSettings.general || {}) },
                     responses: normalizeResponseSettings(remoteSettings.responses || state.settings.responses),
                     instructions: { ...state.settings.instructions, ...(remoteSettings.instructions || {}) },
-                    stimuli: { ...state.settings.stimuli, ...(remoteSettings.stimuli || {}) },
-                    instructionsStimuliVersion: remoteSettings.instructionsStimuliVersion || 0
+                    stimuli: { ...state.settings.stimuli, ...(remoteSettings.stimuli || {}) }
                 };
             }
         }
@@ -1482,6 +1454,7 @@ function initGeneralEventListeners() {
         const specName = document.getElementById("tsSpecialistName")?.value.trim() || '';
         const specTitle = document.getElementById("tsSpecialistTitle")?.value.trim() || '';
         const center = document.getElementById("tsCenter")?.value.trim() || '';
+        const sessionDate = document.getElementById("tsSessionDate")?.value;
 
         const selectedTests = Array.from(document.querySelectorAll(".test-checkbox:checked")).map(cb => cb.value);
         if (selectedTests.length === 0) { alert("يرجى تحديد اختبار واحد على الأقل."); return; }
@@ -1533,8 +1506,12 @@ function initGeneralEventListeners() {
         
         state.activeStudentId = existingStudent.id;
         state.sessionStudent = { ...existingStudent };
-        state.sessionSpecialist = (specName || specTitle || center)
-            ? { name: specName, title: specTitle, center }
+        const now = new Date();
+        const applicationDate = sessionDate
+            ? new Date(`${sessionDate}T${now.toTimeString().slice(0, 8)}`).toISOString()
+            : now.toISOString();
+        state.sessionSpecialist = (specName || specTitle || center || sessionDate)
+            ? { name: specName, title: specTitle, center, date: applicationDate }
             : null;
         state.testQueue = [...selectedTests];
         
@@ -1626,7 +1603,6 @@ function initGeneralEventListeners() {
     // Delete Session Action
     document.getElementById("deleteSessionBtn")?.addEventListener("click", () => {
         if (!state.activeSession) return;
-        if (!requestDeletionAuthorization()) return;
         if (confirm('هل أنت متأكد من حذف هذه الجلسة نهائيًا؟')) {
             const sessionId = state.activeSession.id;
             state.sessions = state.sessions.filter(s => s.id !== sessionId);
@@ -1672,7 +1648,6 @@ function initGeneralEventListeners() {
         const studentId = document.getElementById('historyStudentSelect')?.value;
         const student = state.students.find(item => item.id === studentId);
         if (!student) return;
-        if (!requestDeletionAuthorization()) return;
         if (!confirm(`هل أنت متأكد من حذف ${student.name || 'هذا الطالب'} وكل جلساته نهائيًا؟`)) return;
         deleteStudentRecord(studentId);
     });
@@ -1832,10 +1807,7 @@ function populateSettingsForms() {
     };
     Object.entries(instructionFields).forEach(([id, key]) => {
         const element = document.getElementById(id);
-        if (element) {
-            element.readOnly = false;
-            element.value = instructionTextForEditor(state.settings.instructions[key] || DEFAULT_INSTRUCTIONS[key]);
-        }
+        if (element) { element.readOnly = true; element.value = (DEFAULT_INSTRUCTIONS[key] || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''); }
     });
 
     syncPracticeSettingsUI();
@@ -3629,7 +3601,7 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
     ]));
 
     const summaryRows = [[
-        "رقم الجلسة", "اسم الطالب", "الفئة", "نوع الاختبار", "وقت التنفيذ",
+        "رقم الجلسة", "اسم الطالب", "الفئة", "نوع الاختبار", "تاريخ التطبيق",
         "المحاولات الرسمية", "المحاولات التدريبية غير المحتسبة", "الصحيح الكلي", "الاستجابات الصحيحة بضغطة",
         "التجاهل الصحيح", "الاختيار الخاطئ", "الاستجابات الفائتة", "الضغط الخاطئ على المشتت", "الاستجابة المبكرة", "الاستجابة المتأخرة المستبعدة",
         "الدقة %", "نسبة الخطأ %", "متوسط زمن الاستجابة (مللي ثانية)", "وسيط زمن الاستجابة (مللي ثانية)", "الانحراف المعياري (مللي ثانية)", "أسرع استجابة (مللي ثانية)", "أبطأ استجابة (مللي ثانية)",
@@ -4876,7 +4848,7 @@ class TestEngine {
             studentCategory: student.category || '',
             specialist: state.sessionSpecialist ? deepClone(state.sessionSpecialist) : null,
             testType: this.testType,
-            date: new Date().toISOString(),
+            date: state.sessionSpecialist?.date || new Date().toISOString(),
             duration,
             trialsCount,
             formalTrialsCount: trialsCount,
