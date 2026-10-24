@@ -36,7 +36,7 @@ let cloudPushPromise = null;
 let deferredRemoteSync = false;
 let groupReportRenderTimer = null;
 let realtimeUiRefreshTimer = null;
-const APP_CACHE_VERSION = '20261024-10';
+const APP_CACHE_VERSION = '20261024-11';
 let pendingRealtimeUiRefresh = { settingsChanged: false, recordsChanged: false };
 
 // Keep a lightweight local record of what has already been confirmed in the
@@ -230,9 +230,60 @@ function makeEntityId(prefix) {
     return `${prefix}_${unique}`;
 }
 
-function makeStudentCode(id) {
-    const compact = String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
-    return `STU-${compact || Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+// 1–100: STU-01 … STU-100, then STU-A1 … STU-A100, STU-B1 … and so on.
+function studentCodeSuffixFor(serial) {
+    const safeSerial = Math.max(1, Math.floor(Number(serial) || 1));
+    if (safeSerial <= 100) return String(safeSerial).padStart(2, '0');
+
+    const afterFirstHundred = safeSerial - 101;
+    let letterNumber = Math.floor(afterFirstHundred / 100);
+    let letters = '';
+    do {
+        letters = String.fromCharCode(65 + (letterNumber % 26)) + letters;
+        letterNumber = Math.floor(letterNumber / 26) - 1;
+    } while (letterNumber >= 0);
+    return `${letters}${(afterFirstHundred % 100) + 1}`;
+}
+
+function makeStudentCode(serial) {
+    return `STU-${studentCodeSuffixFor(serial)}`;
+}
+
+function makeNextStudentCode() {
+    const assignedCodes = new Set(state.students.map(student => String(student.code || '').toUpperCase()));
+    let serial = 1;
+    while (assignedCodes.has(makeStudentCode(serial).toUpperCase())) serial += 1;
+    return makeStudentCode(serial);
+}
+
+function stableStudentOrder(first, second) {
+    const firstDate = new Date(first?.createdAt || first?.updatedAt || 0).getTime();
+    const secondDate = new Date(second?.createdAt || second?.updatedAt || 0).getTime();
+    if (firstDate !== secondDate) return firstDate - secondDate;
+    return String(first?.id || '').localeCompare(String(second?.id || ''));
+}
+
+function applyCompactStudentCodes() {
+    const orderedStudents = [...state.students].sort(stableStudentOrder);
+    const codeByStudentId = new Map();
+    let changed = false;
+
+    orderedStudents.forEach((student, index) => {
+        const code = makeStudentCode(index + 1);
+        codeByStudentId.set(student.id, code);
+        if (student.code !== code) {
+            student.code = code;
+            changed = true;
+        }
+    });
+    state.sessions.forEach(session => {
+        const code = codeByStudentId.get(session.studentId);
+        if (code && session.studentCode !== code) {
+            session.studentCode = code;
+            changed = true;
+        }
+    });
+    return changed;
 }
 
 function escapeHtml(value) {
@@ -858,7 +909,7 @@ function migrateLoadedState() {
             category: '',
             ...student,
             id,
-            code: student.code || makeStudentCode(id),
+            code: student.code || '',
             updatedAt: student.updatedAt || student.createdAt || new Date().toISOString()
         };
     });
@@ -872,6 +923,7 @@ function migrateLoadedState() {
             updatedAt: session.updatedAt || session.date || new Date().toISOString()
         };
     });
+    return applyCompactStudentCodes();
 }
 
 // Global chart references
@@ -928,7 +980,8 @@ function loadData() {
             };
         }
 
-        migrateLoadedState();
+        const studentCodesChanged = migrateLoadedState();
+        if (studentCodesChanged) markPendingCloudChanges();
 
         // Set default active student if exists
         if (state.students.length > 0) {
@@ -1047,7 +1100,8 @@ async function syncFromFirestore(writeBack = false) {
         const allowedLocalSessions = state.sessions.filter(session => !sharedDeletedIds.sessions.has(session.id));
         state.students = mergeRecordsById(allowedLocalStudents, allowedRemoteStudents);
         state.sessions = mergeRecordsById(allowedLocalSessions, allowedRemoteSessions).map(normalizeSession);
-        migrateLoadedState();
+        const studentCodesChanged = migrateLoadedState();
+        if (studentCodesChanged) markPendingCloudChanges();
         await migrateEmbeddedStimuliToStorage();
         localStorage.setItem('sensory_students', JSON.stringify(state.students));
         localStorage.setItem('sensory_sessions', JSON.stringify(state.sessions));
@@ -1296,7 +1350,7 @@ function refreshStudentLookupOptions() {
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
         .forEach(student => {
             const option = document.createElement('option');
-            option.value = `${student.code || makeStudentCode(student.id)} — ${student.name || 'حالة غير مسماة'}`;
+            option.value = `${student.code || 'STU-غير مسجل'} — ${student.name || 'حالة غير مسماة'}`;
             list.appendChild(option);
         });
 }
@@ -1364,41 +1418,6 @@ function initGeneralEventListeners() {
         }
     });
 
-
-    // Launch Test buttons in Grid (legacy - kept for home dashboard quick launch)
-    document.addEventListener("click", (e) => {
-        const btn = e.target.closest(".launch-test-btn");
-        if (!btn) return;
-        const testType = btn.getAttribute("data-test-type");
-        
-        // Build a quick student from activeStudentId if available
-        let qs = state.sessionStudent;
-        if (!qs && state.activeStudentId) {
-            const st = state.students.find(s => s.id === state.activeStudentId);
-            if (st) qs = { ...st };
-        }
-        if (!qs) {
-            const id = makeEntityId('student');
-            const anonymousStudent = {
-                id,
-                code: makeStudentCode(id),
-                name: `حالة غير مسماة #${String(Date.now()).slice(-6)}`,
-                age: null,
-                gender: '',
-                iq: null,
-                category: '',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            state.students.push(anonymousStudent);
-            state.activeStudentId = anonymousStudent.id;
-            qs = anonymousStudent;
-            saveData();
-        }
-        state.sessionStudent = qs;
-        state.testQueue = [testType];
-        startNextTestFromQueue();
-    });
 
     // ===================== Tests-View Form Handlers =====================
     // Select all / Clear all test checkboxes
@@ -1488,7 +1507,7 @@ function initGeneralEventListeners() {
             const id = makeEntityId('student');
             existingStudent = {
                 id,
-                code: makeStudentCode(id),
+                code: makeNextStudentCode(),
                 name: enteredName,
                 age,
                 gender,
