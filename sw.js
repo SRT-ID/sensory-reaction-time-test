@@ -1,4 +1,7 @@
-const CACHE_NAME = 'srt-offline-v1';
+// Bump this value on every deployment that changes the application shell.
+// It prevents an offline device from continuing to run an old app.js after a
+// new version has been published to GitHub Pages/Firebase Hosting.
+const CACHE_NAME = 'srt-offline-v3';
 const APP_SHELL = [
     './',
     './index.html',
@@ -7,7 +10,6 @@ const APP_SHELL = [
     './audio.js',
     './assets/audio/dog.wav',
     './assets/audio/cat.wav',
-    './assets/audio/bird.wav',
     './assets/audio/cow.wav',
     './assets/audio/donkey.wav',
     './assets/audio/goat.wav'

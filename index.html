@@ -283,7 +283,14 @@
                                     <option value="اضطراب فرط الحركة وتشتت الانتباه ADHD">اضطراب فرط الحركة وتشتت الانتباه ADHD</option>
                                     <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
                                     <option value="طبيعي">طبيعي</option>
-                                </select>
+                                <option value="الإعاقة البصرية">الإعاقة البصرية</option>
+<option value="الإعاقة السمعية">الإعاقة السمعية</option>
+<option value="صعوبات التعلم أو بطء التعلم">صعوبات التعلم أو بطء التعلم</option>
+<option value="اضطرابات النطق واللغة والتواصل">اضطرابات النطق واللغة والتواصل</option>
+<option value="الاضطرابات السلوكية والانفعالية">الاضطرابات السلوكية والانفعالية</option>
+<option value="التأخر النمائي الشامل عند الأطفال">التأخر النمائي الشامل عند الأطفال</option>
+<option value="أخرى">أخرى</option>
+</select><input id="tsStudentOtherCategory" type="text" maxlength="150" placeholder="اكتب اسم الفئة" aria-label="اسم الفئة الأخرى" hidden>
                             </div>
                         </div>
                     </div>
@@ -485,37 +492,24 @@
                     <div class="settings-tab-content" id="response-settings">
                         <div class="response-settings-intro">
                             <h4>إعدادات الاستجابة</h4>
-                            <p>تحدد الحدود الزمنية حسب فئة الحالة. الاستجابة المبكرة ثابتة، والحد الأقصى لنطاق الاستجابة الفائتة هو نهاية انتظار الاستجابة ومدة بقاء المثير.</p>
+                            <p>نطاق الاستجابة ثابت لجميع الفئات: من ٢٠٠ إلى ٤٠٠٠ مللي ثانية (٠٫٢–٤ ثوانٍ).</p>
                         </div>
                         <div class="response-settings-table-wrap">
                             <table class="response-settings-table">
-                                <thead>
-                                    <tr>
-                                        <th rowspan="2">الفئة</th>
-                                        <th rowspan="2">الاستجابة المبكرة<br><small>(مللي ثانية)</small></th>
-                                        <th colspan="2">الاستجابة الصحيحة</th>
-                                        <th colspan="2">الاستجابة المتأخرة</th>
-                                        <th colspan="2">الاستجابة الفائتة</th>
-                                    </tr>
-                                    <tr>
-                                        <th>من</th><th>إلى</th>
-                                        <th>من</th><th>إلى</th>
-                                        <th>من</th><th>إلى</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr><th>الفئات</th><th>المبكرة (مللي ثانية)</th><th>بداية النطاق</th><th>نهاية النطاق</th><th>انتهاء المهلة</th></tr></thead>
                                 <tbody id="responseSettingsTableBody"></tbody>
                             </table>
                         </div>
-                        <p class="response-settings-note">إذا انتهت قيمة «إلى» في الاستجابة الفائتة دون ضغط، تُسجل المحاولة «استجابة فائتة» بلا زمن استجابة، ولا تدخل في المتوسط أو الانحراف المعياري.</p>
+                        <p class="response-settings-note">إذا انتهت مهلة ٤٠٠٠ مللي ثانية دون ضغط، تُسجل المحاولة «استجابة فائتة» بلا زمن استجابة، ولا تدخل في المتوسط أو الانحراف المعياري.</p>
                         <div class="settings-validation-error" id="responseSettingsError" role="alert" hidden></div>
                         <div class="form-actions">
-                            <button type="button" class="primary-btn" id="saveResponseSettingsBtn">حفظ إعدادات الاستجابة</button>
-                            <button type="button" class="secondary-btn" id="resetResponseSettingsBtn">استعادة الافتراضي</button>
+                            <button type="button" class="primary-btn" id="saveResponseSettingsBtn" hidden>حفظ إعدادات الاستجابة</button>
+                            <button type="button" class="secondary-btn" id="resetResponseSettingsBtn" hidden>استعادة الافتراضي</button>
                         </div>
                     </div>
 
                     <!-- Tab Content 3: Stimuli Settings -->
-                    <div class="settings-tab-content" id="stimuli-settings">
+                    <div class="settings-tab-content" id="stimuli-settings"><p>مثيرات وتعليمات افتراضية ثابتة.</p><div id="fixedStimulusInstruction"></div>
                         <div class="form-group" style="max-width: 350px; margin-bottom: 20px;">
                             <label for="cfgStimuliTestType">اختر نوع الاختبار للتعديل:</label>
                             <select id="cfgStimuliTestType" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; width: 100%;">
@@ -584,8 +578,8 @@
                                 </div>
                             </div>
                             <div class="form-actions" style="margin-top: 20px;">
-                                <button type="button" class="primary-btn" id="saveInstructionsSettingsBtn">حفظ تعليمات الاختبار</button>
-                                <button type="button" class="secondary-btn" id="resetInstructionsSettingsBtn">استعادة الافتراضي</button>
+                                <button type="button" class="primary-btn" id="saveInstructionsSettingsBtn" hidden>حفظ تعليمات الاختبار</button>
+                                <button type="button" class="secondary-btn" id="resetInstructionsSettingsBtn" hidden>استعادة الافتراضي</button>
                             </div>
                         </form>
                     </div>
@@ -887,7 +881,13 @@
                                     <option value="اضطراب فرط الحركة وتشتت الانتباه ADHD">اضطراب فرط الحركة وتشتت الانتباه ADHD</option>
                                     <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
                                     <option value="طبيعي">طبيعي</option>
-                                </select>
+                                <option value="الإعاقة البصرية">الإعاقة البصرية</option>
+<option value="الإعاقة السمعية">الإعاقة السمعية</option>
+<option value="صعوبات التعلم أو بطء التعلم">صعوبات التعلم أو بطء التعلم</option>
+<option value="اضطرابات النطق واللغة والتواصل">اضطرابات النطق واللغة والتواصل</option>
+<option value="الاضطرابات السلوكية والانفعالية">الاضطرابات السلوكية والانفعالية</option>
+<option value="التأخر النمائي الشامل عند الأطفال">التأخر النمائي الشامل عند الأطفال</option>
+</select>
                         </div>
                         <div class="selector-field">
                             <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">نسبة الذكاء:</label>
@@ -975,21 +975,6 @@
                                 <table class="report-details-table">
                                     <thead><tr><th>النطاق</th><th>نوع الاختبار</th><th>مجموع المحاولات</th></tr></thead>
                                     <tbody id="groupTrialsTotalsBody"></tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div class="report-table-section" style="margin-bottom: 25px;">
-                            <h4>زمن الاستجابة لكل محاولة ولكل طالب</h4>
-                            <div class="table-container group-trials-table-container">
-                                <table class="report-details-table">
-                                    <thead>
-                                        <tr>
-                                            <th>اسم الطالب</th><th>الفئة</th><th>القسم</th><th>نوع الاختبار</th>
-                                            <th>رقم المحاولة</th><th>المثير</th><th>النتيجة</th><th>زمن الاستجابة (مللي ثانية)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="groupTrialDetailsBody"></tbody>
                                 </table>
                             </div>
                         </div>

@@ -31,6 +31,27 @@ let offlineSyncPromise = null;
 let sharedRealtimeUnsubscribers = [];
 let pendingDeletions = { students: {}, sessions: {} };
 const sharedDeletedIds = { students: new Set(), sessions: new Set() };
+let cloudPullPromise = null;
+let cloudPushPromise = null;
+let deferredRemoteSync = false;
+let groupReportRenderTimer = null;
+let realtimeUiRefreshTimer = null;
+
+// Keep a lightweight local record of what has already been confirmed in the
+// cloud.  The old implementation uploaded every student and every session
+// after any change, which becomes prohibitively expensive with concurrent use.
+const cloudRecordFingerprints = {
+    settings: null,
+    students: new Map(),
+    sessions: new Map()
+};
+const pendingCloudChanges = {
+    settings: false,
+    students: new Set(),
+    sessions: new Set()
+};
+const MAX_GROUP_DETAIL_ROWS = 500;
+const MAX_DASHBOARD_CHART_POINTS = 200;
 
 if (firebaseConfig.apiKey && typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') {
     try {
@@ -92,21 +113,14 @@ const state = {
             interStimulusMs: 1000
         },
         responses: {
-            'إعاقة عقلية': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
-            'متلازمة داون': { correct: { from: 200, to: 3500 }, late: { from: 3501, to: 4000 }, missed: { from: 4001, to: 4500 } },
-            'اضطراب طيف التوحد': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
-            'الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
-            'اضطراب فرط الحركة وتشتت الانتباه ADHD': { correct: { from: 200, to: 2000 }, late: { from: 2001, to: 2500 }, missed: { from: 2501, to: 3000 } },
-            'طبيعي': { correct: { from: 200, to: 1500 }, late: { from: 1501, to: 2000 }, missed: { from: 2001, to: 2500 } },
-            'مزدوج الإعاقة': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } },
-            'غير محدد': { correct: { from: 200, to: 3000 }, late: { from: 3001, to: 3500 }, missed: { from: 3501, to: 4000 } }
+            'موحد': { correct: { from: 200, to: 4000 }, late: { from: 4001, to: 4001 }, missed: { from: 4002, to: 4002 } }
         },
         instructions: {
             'visual-simple': "ستظهر دائرة خضراء في وسط الشاشة.<br>عند ظهور الدائرة اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تظهر الدائرة.",
             'visual-discriminative': "ستظهر ألوان مختلفة في وسط الشاشة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند ظهور الدائرة الخضراء.<br>تجاهل الألوان الأخرى (الحمراء والزرقاء والصفراء) ولا تضغط على أي زر.",
             'visual-choice': "ستظهر مثيرات بصرية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للمثير بأسرع ما يمكن.",
             'auditory-simple': "ستسمع صوت كلب حقيقيًا.<br>عند سماع الصوت اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تسمع الصوت.",
-            'auditory-discriminative': "ستسمع أصوات حيوانات حقيقية مختلفة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة والعصفور ولا تضغط على أي زر.",
+            'auditory-discriminative': "ستسمع أصوات حيوانات حقيقية مختلفة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة ولا تضغط على أي زر.",
             'auditory-choice': "ستسمع مثيرات سمعية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للصوت بأسرع ما يمكن."
         },
         stimuli: {
@@ -138,14 +152,12 @@ const state = {
                 targets: [{ id: 'dog', type: 'sound', val: 'dog', label: 'كلب' }],
                 distractors: [
                     { id: 'cat', type: 'sound', val: 'cat', label: 'قطة' },
-                    { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور' }
                 ]
             },
             auditoryChoice: {
                 targets: [
                     { id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'KeyA', keyLabel: 'A' },
                     { id: 'cat', type: 'sound', val: 'cat', label: 'قطة', key: 'KeyB', keyLabel: 'B' },
-                    { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور', key: 'KeyC', keyLabel: 'C' }
                 ],
                 distractors: []
             }
@@ -229,7 +241,7 @@ function safeNumber(value, fallback = null) {
 function canonicalResponseCategory(category) {
     const normalized = String(category || '').trim();
     return RESPONSE_CATEGORY_ALIASES[normalized]
-        || (Object.prototype.hasOwnProperty.call(DEFAULT_RESPONSE_SETTINGS, normalized) ? normalized : 'غير محدد');
+        || normalized || 'غير محدد';
 }
 
 function normalizeResponseRange(range, fallback) {
@@ -239,24 +251,8 @@ function normalizeResponseRange(range, fallback) {
     };
 }
 
-function normalizeResponseSettings(settings) {
-    const normalized = {};
-    Object.entries(DEFAULT_RESPONSE_SETTINGS).forEach(([category, defaults]) => {
-        const source = settings?.[category]
-            || (category === 'اضطراب فرط الحركة وتشتت الانتباه ADHD'
-                ? settings?.['اضطراب فرط الحركة وتشتت الانتباه']
-                : null)
-            || {};
-        normalized[category] = {
-            correct: normalizeResponseRange(source.correct, defaults.correct),
-            late: normalizeResponseRange(source.late, defaults.late),
-            missed: normalizeResponseRange(source.missed, defaults.missed)
-        };
-        if (validateResponseLimits(normalized[category], category)) {
-            normalized[category] = deepClone(defaults);
-        }
-    });
-    return normalized;
+function normalizeResponseSettings() {
+    return deepClone(DEFAULT_RESPONSE_SETTINGS);
 }
 
 function validateResponseLimits(limits, category = '') {
@@ -279,18 +275,15 @@ function validateResponseLimits(limits, category = '') {
     return '';
 }
 
-function getResponseLimits(category, settings = state.settings.responses) {
-    const canonicalCategory = canonicalResponseCategory(category);
-    const defaults = DEFAULT_RESPONSE_SETTINGS[canonicalCategory] || DEFAULT_RESPONSE_SETTINGS['غير محدد'];
-    const candidate = normalizeResponseSettings(settings)[canonicalCategory] || deepClone(defaults);
-    return validateResponseLimits(candidate, canonicalCategory) ? deepClone(defaults) : deepClone(candidate);
+function getResponseLimits() {
+    return deepClone(DEFAULT_RESPONSE_SETTINGS['موحد']);
 }
 
 function getSessionResponseLimits(session) {
-    return getResponseLimits(
-        session?.studentCategory,
-        session?.settingsSnapshot?.responses || state.settings.responses
-    );
+    // Stored sessions retain the classification rules in effect when recorded.
+    const snapshot = session?.settingsSnapshot?.responses;
+    const saved = snapshot?.[session?.studentCategory] || snapshot?.[RESPONSE_CATEGORY_ALIASES[session?.studentCategory]] || snapshot?.['غير محدد'] || snapshot?.['موحد'];
+    return saved && !validateResponseLimits(saved) ? deepClone(saved) : getResponseLimits();
 }
 
 function classifyResponseLatency(latencySeconds, limits) {
@@ -368,6 +361,199 @@ function sharedCollection(name) {
     return useFirebase && db && firebaseUser ? db.collection(name) : null;
 }
 
+function stableFingerprint(value) {
+    const normalize = item => {
+        if (Array.isArray(item)) return item.map(normalize);
+        if (item && typeof item === 'object') {
+            return Object.keys(item).sort().reduce((result, key) => {
+                result[key] = normalize(item[key]);
+                return result;
+            }, {});
+        }
+        return item;
+    };
+    const serialized = JSON.stringify(normalize(value));
+    // A compact deterministic fingerprint avoids retaining a second complete
+    // copy of every session just to decide which documents must be uploaded.
+    let hash = 2166136261;
+    for (let index = 0; index < serialized.length; index += 1) {
+        hash ^= serialized.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return `${serialized.length}:${(hash >>> 0).toString(36)}`;
+}
+
+function persistCloudFingerprints() {
+    try {
+        localStorage.setItem('sensory_cloud_fingerprints', JSON.stringify({
+            settings: cloudRecordFingerprints.settings,
+            students: [...cloudRecordFingerprints.students.entries()],
+            sessions: [...cloudRecordFingerprints.sessions.entries()]
+        }));
+    } catch (error) {
+        console.warn('Could not persist cloud synchronization metadata:', error);
+    }
+}
+
+function restoreCloudFingerprints() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('sensory_cloud_fingerprints') || 'null');
+        if (!saved) return;
+        cloudRecordFingerprints.settings = saved.settings || null;
+        cloudRecordFingerprints.students = new Map(saved.students || []);
+        cloudRecordFingerprints.sessions = new Map(saved.sessions || []);
+    } catch (error) {
+        console.warn('Could not restore cloud synchronization metadata:', error);
+    }
+}
+
+function isTestInProgress() {
+    const test = state.currentRunningTest;
+    return Boolean(test && !test.isStopped && !test.hasEnded);
+}
+
+function markPendingCloudChanges() {
+    const settingsFingerprint = stableFingerprint(state.settings);
+    if (settingsFingerprint !== cloudRecordFingerprints.settings) pendingCloudChanges.settings = true;
+
+    state.students.forEach(student => {
+        if (!student?.id) return;
+        if (stableFingerprint(student) !== cloudRecordFingerprints.students.get(student.id)) {
+            pendingCloudChanges.students.add(student.id);
+        }
+    });
+    state.sessions.forEach(session => {
+        if (!session?.id) return;
+        if (stableFingerprint(session) !== cloudRecordFingerprints.sessions.get(session.id)) {
+            pendingCloudChanges.sessions.add(session.id);
+        }
+    });
+}
+
+function rememberCloudState({ preserveLocalChanges = false } = {}) {
+    const settingsFingerprint = stableFingerprint(state.settings);
+    if (!preserveLocalChanges || !pendingCloudChanges.settings) {
+        cloudRecordFingerprints.settings = settingsFingerprint;
+    }
+
+    ['students', 'sessions'].forEach(collectionName => {
+        const records = state[collectionName] || [];
+        const map = cloudRecordFingerprints[collectionName];
+        const pending = pendingCloudChanges[collectionName];
+        const currentIds = new Set(records.map(record => record?.id).filter(Boolean));
+        [...map.keys()].forEach(id => {
+            if (!currentIds.has(id) && !pending.has(id)) map.delete(id);
+        });
+        records.forEach(record => {
+            if (!record?.id || (preserveLocalChanges && pending.has(record.id))) return;
+            map.set(record.id, stableFingerprint(record));
+        });
+    });
+    persistCloudFingerprints();
+}
+
+function markCloudRecordConfirmed(collectionName, record) {
+    if (!record?.id) return;
+    cloudRecordFingerprints[collectionName].set(record.id, stableFingerprint(record));
+    pendingCloudChanges[collectionName].delete(record.id);
+    persistCloudFingerprints();
+}
+
+function flushDeferredRemoteSync() {
+    if (!deferredRemoteSync || isTestInProgress()) return;
+    deferredRemoteSync = false;
+    syncFromFirestore(false).catch(error => {
+        console.warn('Deferred realtime refresh failed:', error?.code || error);
+    });
+}
+
+function queueRealtimeUiRefresh() {
+    if (isTestInProgress()) {
+        deferredRemoteSync = true;
+        return;
+    }
+    clearTimeout(realtimeUiRefreshTimer);
+    realtimeUiRefreshTimer = setTimeout(() => {
+        initSettingsForms();
+        updateUI();
+        if (document.getElementById('results-view')?.classList.contains('active-screen')) {
+            populateSessionsList();
+            if (document.getElementById('btnGroupTab')?.classList.contains('active')) {
+                scheduleGroupReportRender();
+            }
+        }
+    }, 100);
+}
+
+function applySharedRealtimeSnapshot(collectionName, snapshot) {
+    if (snapshot?.metadata?.hasPendingWrites) return;
+    if (isTestInProgress()) {
+        deferredRemoteSync = true;
+        return;
+    }
+
+    let changed = false;
+    snapshot.docChanges().forEach(change => {
+        const id = change.doc.id;
+        const data = { ...change.doc.data(), id };
+
+        if (collectionName === 'appData') {
+            if (id !== 'settings' || pendingCloudChanges.settings) return;
+            const remoteTime = new Date(data.updatedAt || 0).getTime();
+            const localTime = new Date(state.settings.updatedAt || 0).getTime();
+            if (remoteTime < localTime) return;
+            state.settings = {
+                ...state.settings,
+                ...data,
+                general: { ...state.settings.general, ...(data.general || {}) },
+                responses: normalizeResponseSettings(data.responses || state.settings.responses),
+                instructions: { ...state.settings.instructions, ...(data.instructions || {}) },
+                stimuli: { ...state.settings.stimuli, ...(data.stimuli || {}) }
+            };
+            cloudRecordFingerprints.settings = stableFingerprint(state.settings);
+            changed = true;
+            return;
+        }
+
+        if (collectionName === 'deletions') {
+            const targetCollection = data.collectionName;
+            const recordId = data.recordId;
+            if (!sharedDeletedIds[targetCollection] || !recordId) return;
+            sharedDeletedIds[targetCollection].add(recordId);
+            if (!pendingCloudChanges[targetCollection].has(recordId)) {
+                state[targetCollection] = state[targetCollection].filter(record => record.id !== recordId);
+                cloudRecordFingerprints[targetCollection].delete(recordId);
+                changed = true;
+            }
+            return;
+        }
+
+        if (!['students', 'sessions'].includes(collectionName)) return;
+        if (pendingCloudChanges[collectionName].has(id)) return;
+        const records = state[collectionName];
+        const index = records.findIndex(record => record.id === id);
+        if (change.type === 'removed') {
+            if (index !== -1) records.splice(index, 1);
+            cloudRecordFingerprints[collectionName].delete(id);
+            changed = index !== -1;
+            return;
+        }
+        const record = collectionName === 'sessions' ? normalizeSession(data) : data;
+        if (index === -1) records.push(record);
+        else records[index] = record;
+        cloudRecordFingerprints[collectionName].set(id, stableFingerprint(record));
+        changed = true;
+    });
+
+    if (changed) {
+        if (!state.activeStudentId || !state.students.some(student => student.id === state.activeStudentId)) {
+            state.activeStudentId = state.students[0]?.id || null;
+        }
+        persistCloudFingerprints();
+        queueRealtimeUiRefresh();
+    }
+}
+
 function persistPendingDeletions() {
     localStorage.setItem('sensory_pending_deletions', JSON.stringify(pendingDeletions));
 }
@@ -395,6 +581,9 @@ async function flushPendingDeletions() {
             });
             await db.collection(collectionName).doc(id).delete();
             sharedDeletedIds[collectionName].add(id);
+            cloudRecordFingerprints[collectionName].delete(id);
+            pendingCloudChanges[collectionName].delete(id);
+            persistCloudFingerprints();
             clearPendingDeletion(collectionName, id);
         }
     }
@@ -600,6 +789,8 @@ function migrateLoadedState() {
         state.settings.instructions['auditory-choice'] = DEFAULT_INSTRUCTIONS['auditory-choice'];
         state.settings.realAudioCatalogVersion = 3;
     }
+    state.settings.stimuli = deepClone(DEFAULT_STIMULI);
+    state.settings.instructions = deepClone(DEFAULT_INSTRUCTIONS);
     ['visualChoice', 'auditoryChoice'].forEach(testType => {
         const config = state.settings.stimuli[testType] || deepClone(DEFAULT_STIMULI[testType]);
         config.distractors = [];
@@ -662,6 +853,8 @@ function loadData() {
         const cachedSettings = localStorage.getItem("sensory_settings");
         const cachedDeletions = localStorage.getItem('sensory_pending_deletions');
 
+        restoreCloudFingerprints();
+
         if (cachedStudents) state.students = JSON.parse(cachedStudents);
         if (cachedSessions) state.sessions = JSON.parse(cachedSessions);
         if (cachedDeletions) {
@@ -715,6 +908,7 @@ function saveData(options = {}) {
         showDataStatus('مساحة التخزين على الجهاز ممتلئة. صدّر نسخة Excel قبل إضافة بيانات جديدة.', 'error');
     }
 
+    markPendingCloudChanges();
     if (options.scheduleCloudSync !== false && navigator.onLine !== false) {
         clearTimeout(syncTimer);
         syncTimer = setTimeout(syncAllToFirestore, 650);
@@ -723,19 +917,26 @@ function saveData(options = {}) {
 
 function startSharedRealtimeSync() {
     if (!db || sharedRealtimeUnsubscribers.length) return;
-    const refresh = () => {
-        clearTimeout(sharedRefreshTimer);
-        sharedRefreshTimer = setTimeout(() => syncFromFirestore(false), 350);
-    };
     ['students', 'sessions', 'deletions', 'appData'].forEach(collectionName => {
-        sharedRealtimeUnsubscribers.push(db.collection(collectionName).onSnapshot(refresh, error => {
+        sharedRealtimeUnsubscribers.push(db.collection(collectionName).onSnapshot(snapshot => {
+            // Apply only Firestore's changed documents.  Re-querying every
+            // collection after each remote write was the main multi-user
+            // bottleneck in the previous implementation.
+            applySharedRealtimeSnapshot(collectionName, snapshot);
+        }, error => {
             console.warn(`Realtime sync unavailable for ${collectionName}:`, error?.code || error);
         }));
     });
 }
 
-async function syncFromFirestore(writeBack = true) {
+async function syncFromFirestore(writeBack = false) {
     if (!useFirebase || !db || !firebaseUser || navigator.onLine === false) return false;
+    if (isTestInProgress()) {
+        deferredRemoteSync = true;
+        return false;
+    }
+    if (cloudPullPromise) return cloudPullPromise;
+    cloudPullPromise = (async () => {
     try {
         const legacyRoot = db.collection('users').doc(firebaseUser.uid);
         const emptyDoc = { exists: false, data: () => ({}) };
@@ -805,6 +1006,7 @@ async function syncFromFirestore(writeBack = true) {
         initSettingsForms();
         updateUI();
         populateSessionsList();
+        rememberCloudState({ preserveLocalChanges: true });
         startSharedRealtimeSync();
         if (writeBack) await syncAllToFirestore();
         return true;
@@ -812,7 +1014,11 @@ async function syncFromFirestore(writeBack = true) {
         console.error('Secure cloud sync failed:', error);
         showDataStatus('تعذرت المزامنة السحابية. ستظل البيانات محفوظة على هذا الجهاز.', 'warning');
         return false;
+    } finally {
+        cloudPullPromise = null;
     }
+    })();
+    return cloudPullPromise;
 }
 
 function settingsContainLocalAudioReferences(settings = state.settings) {
@@ -824,14 +1030,17 @@ function settingsContainLocalAudioReferences(settings = state.settings) {
 
 async function syncAllToFirestore(options = {}) {
     if (navigator.onLine === false) return false;
+    if (cloudPushPromise) return cloudPushPromise;
+    cloudPushPromise = (async () => {
     await firebaseReady;
     if (!useFirebase || !db || !firebaseUser) return false;
     try {
         await flushPendingDeletions();
-        const students = state.students.filter(student => !sharedDeletedIds.students.has(student.id));
-        const sessions = state.sessions.filter(session => !sharedDeletedIds.sessions.has(session.id));
+        markPendingCloudChanges();
+        const students = state.students.filter(student => pendingCloudChanges.students.has(student.id) && !sharedDeletedIds.students.has(student.id));
+        const sessions = state.sessions.filter(session => pendingCloudChanges.sessions.has(session.id) && !sharedDeletedIds.sessions.has(session.id));
         const writes = [
-            ...(settingsContainLocalAudioReferences()
+            ...(!pendingCloudChanges.settings || settingsContainLocalAudioReferences()
                 ? []
                 : [{ ref: db.collection('appData').doc('settings'), data: state.settings }]),
             ...students.map(student => ({ ref: db.collection('students').doc(student.id), data: student })),
@@ -855,13 +1064,24 @@ async function syncAllToFirestore(options = {}) {
                 clearTimeout(confirmationTimeoutId);
             }
         }
+        if (writes.some(write => write.ref.path === 'appData/settings')) {
+            cloudRecordFingerprints.settings = stableFingerprint(state.settings);
+            pendingCloudChanges.settings = false;
+            persistCloudFingerprints();
+        }
+        students.forEach(student => markCloudRecordConfirmed('students', student));
+        sessions.forEach(session => markCloudRecordConfirmed('sessions', session));
         return true;
     } catch (error) {
         console.error('Secure cloud save failed:', error);
         if (!options.silent) showDataStatus('لم تكتمل المزامنة السحابية؛ الحفظ المحلي ما زال يعمل.', 'warning');
         if (options.throwOnError) throw error;
         return false;
+    } finally {
+        cloudPushPromise = null;
     }
+    })();
+    return cloudPushPromise;
 }
 
 async function saveCompletedTestToCloud(student, session) {
@@ -881,6 +1101,8 @@ async function saveCompletedTestToCloud(student, session) {
     });
     try {
         await Promise.race([cloudWrite, timeout]);
+        if (student?.id) markCloudRecordConfirmed('students', student);
+        markCloudRecordConfirmed('sessions', session);
     } finally {
         clearTimeout(confirmationTimeoutId);
     }
@@ -917,6 +1139,10 @@ function initRouter() {
     navItems.forEach(item => {
         item.addEventListener("click", (e) => {
             e.preventDefault();
+            if (isTestInProgress()) {
+                showDataStatus('لا يمكن الانتقال بين الصفحات أثناء الاختبار؛ أوقف الجلسة أولًا إذا لزم.', 'warning');
+                return;
+            }
             const target = item.getAttribute("data-target");
             switchView(target);
         });
@@ -976,7 +1202,11 @@ function updateUI() {
             latestResultsBody.appendChild(tr);
         });
     }
-    renderDashboardCharts();
+    // Rendering Chart.js while another view (or the full-screen test) is open
+    // blocks the main thread without improving what the user sees.
+    if (document.getElementById('home-view')?.classList.contains('active-screen')) {
+        renderDashboardCharts();
+    }
 }
 
 // Map technical test key to Arabic name
@@ -1073,13 +1303,21 @@ function initGeneralEventListeners() {
         });
     });
 
+    document.getElementById('tsStudentCategory')?.addEventListener('change', event => {
+        const other = document.getElementById('tsStudentOtherCategory');
+        other.hidden = event.target.value !== 'أخرى';
+        other.required = !other.hidden;
+        if (!other.hidden) other.focus();
+    });
+
     // Start session button
     document.getElementById("startTestsSessionBtn")?.addEventListener("click", () => {
         const enteredName = document.getElementById("tsStudentName")?.value.trim() || '';
         const age = safeNumber(document.getElementById("tsStudentAge")?.value, null);
         const gender = document.getElementById("tsStudentGender")?.value;
         const iq = safeNumber(document.getElementById("tsStudentIQ")?.value, null);
-        const category = document.getElementById("tsStudentCategory")?.value || '';
+        const selectedCategory = document.getElementById("tsStudentCategory")?.value || '';
+        const category = selectedCategory === 'أخرى' ? (document.getElementById('tsStudentOtherCategory')?.value.trim() || '') : selectedCategory;
 
         const specName = document.getElementById("tsSpecialistName")?.value.trim() || '';
         const specTitle = document.getElementById("tsSpecialistTitle")?.value.trim() || '';
@@ -1100,7 +1338,7 @@ function initGeneralEventListeners() {
             String(student.name || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ar') === normalizedName
             && Number(student.age) === Number(age)
             && String(student.gender || '') === String(gender || '')
-            && canonicalResponseCategory(student.category) === canonicalResponseCategory(category)
+            && String(student.category || '').trim() === category
         );
         if (existingStudent) {
             existingStudent = Object.assign(existingStudent, {
@@ -1207,7 +1445,7 @@ function initGeneralEventListeners() {
     });
 
     ['cfgGroupDateFrom', 'cfgGroupDateTo', 'cfgGroupGender', 'cfgGroupAgeFrom', 'cfgGroupAgeTo', 'cfgGroupTestType', 'cfgGroupCategory', 'cfgGroupIQFrom', 'cfgGroupIQTo']
-        .forEach(id => document.getElementById(id)?.addEventListener('change', loadGroupReport));
+        .forEach(id => document.getElementById(id)?.addEventListener('change', scheduleGroupReportRender));
 
     // Save Clinical Notes in Report dynamically
     document.getElementById("rptClinicalNotes")?.addEventListener("input", (e) => {
@@ -1359,7 +1597,7 @@ function initGeneralEventListeners() {
             groupResults.classList.add("active-tab");
             groupResults.style.display = "block";
         }
-        loadGroupReport();
+        scheduleGroupReportRender({ immediate: true });
     });
 
     // Click/touch listener on the stimulus display box to capture responses on screen
@@ -1430,7 +1668,7 @@ function populateSettingsForms() {
     };
     Object.entries(instructionFields).forEach(([id, key]) => {
         const element = document.getElementById(id);
-        if (element) element.value = (state.settings.instructions[key] || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
+        if (element) { element.readOnly = true; element.value = (DEFAULT_INSTRUCTIONS[key] || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''); }
     });
 
     syncPracticeSettingsUI();
@@ -1439,22 +1677,7 @@ function populateSettingsForms() {
 
 function renderResponseSettingsTable() {
     const body = document.getElementById('responseSettingsTableBody');
-    if (!body) return;
-    body.innerHTML = '';
-    const settings = normalizeResponseSettings(state.settings.responses);
-    Object.entries(DEFAULT_RESPONSE_SETTINGS).forEach(([category]) => {
-        const limits = settings[category];
-        const row = document.createElement('tr');
-        row.dataset.category = category;
-        row.innerHTML = `
-            <th scope="row">${escapeHtml(category)}</th>
-            <td class="fixed-early-value">أقل من ${EARLY_RESPONSE_LIMIT_MS}</td>
-            ${responseRangeInputs(category, 'correct', limits.correct)}
-            ${responseRangeInputs(category, 'late', limits.late)}
-            ${responseRangeInputs(category, 'missed', limits.missed)}
-        `;
-        body.appendChild(row);
-    });
+    if (body) body.innerHTML = '<tr><th>جميع الفئات</th><td>أقل من ٢٠٠</td><td>٢٠٠</td><td>٤٠٠٠</td><td>تنتهي المهلة عند ٤٠٠٠ مللي ثانية؛ عدم الضغط استجابة فائتة.</td></tr>';
 }
 
 function responseRangeInputs(category, kind, range) {
@@ -1731,14 +1954,12 @@ const DEFAULT_STIMULI = {
         targets: [{ id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'Space', keyLabel: 'Space' }],
         distractors: [
             { id: 'cat', type: 'sound', val: 'cat', label: 'قطة', key: 'ignore', keyLabel: 'تجاهل' },
-            { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور', key: 'ignore', keyLabel: 'تجاهل' }
         ]
     },
     auditoryChoice: {
         targets: [
             { id: 'dog', type: 'sound', val: 'dog', label: 'كلب', key: 'KeyA', keyLabel: 'A' },
             { id: 'cat', type: 'sound', val: 'cat', label: 'قطة', key: 'KeyB', keyLabel: 'B' },
-            { id: 'bird', type: 'sound', val: 'bird', label: 'عصفور', key: 'KeyC', keyLabel: 'C' }
         ],
         distractors: []
     }
@@ -1783,6 +2004,9 @@ function renderSettingsStimuli() {
 
     // 3. Render Mapping Table
     renderSettingsStimuliMappingOnly();
+    document.querySelectorAll('#stimuli-settings input, #stimuli-settings button, #stimuli-settings select:not(#cfgStimuliTestType)').forEach(el => { el.disabled = true; });
+    const instruction = document.getElementById('fixedStimulusInstruction');
+    if (instruction) instruction.innerHTML = sanitizeInstructionHtml(DEFAULT_INSTRUCTIONS[testType.replace(/([A-Z])/g, '-$1').toLowerCase()]);
 }
 
 function renderSettingsStimuliMappingOnly() {
@@ -2211,13 +2435,12 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
                     <optgroup label="الأصوات الحقيقية المرفقة">
                         <option value="dog">كلب 🐕</option>
                         <option value="cat">قطة 🐈</option>
-                        <option value="bird">عصفور 🐦</option>
                         <option value="cow">بقرة 🐄</option>
                         <option value="donkey">حمار</option>
                         <option value="goat">ماعز 🐐</option>
                     </optgroup>
                 `;
-                const availableRealSounds = ['dog', 'cat', 'bird', 'cow', 'donkey', 'goat'];
+                const availableRealSounds = ['dog', 'cat', 'cow', 'donkey', 'goat'];
                 sSelect.value = availableRealSounds.includes(stim.val) ? stim.val : 'dog';
                 if (!availableRealSounds.includes(stim.val)) stim.val = 'dog';
                 sSelect.addEventListener("change", () => {
@@ -2725,7 +2948,9 @@ function renderDashboardCharts() {
 
     // 2. Trend Line Chart
     // Sort runs chronologically
-    const sorted = [...state.sessions].sort((a,b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...state.sessions]
+        .sort((a,b) => new Date(a.date) - new Date(b.date))
+        .slice(-MAX_DASHBOARD_CHART_POINTS);
     const dates = sorted.map(s => new Date(s.date).toLocaleDateString('ar-EG', {month:'short', day:'numeric'}));
     const reactionTimes = sorted.map(s => milliseconds(s.avgReactionTime));
 
@@ -3400,8 +3625,8 @@ let grpFastestRTChartInstance = null;
 let grpSlowestRTChartInstance = null;
 
 
-function summarizeSessions(sessions) {
-    const normalized = sessions.map(normalizeSession);
+function summarizeSessions(sessions, alreadyNormalized = false) {
+    const normalized = alreadyNormalized ? sessions : sessions.map(normalizeSession);
     const trials = normalized.reduce((sum, session) => sum + formalTrialCount(session), 0);
     const correctResponses = normalized.reduce((sum, session) => sum + session.correctCount, 0);
     const wrongResponses = normalized.reduce((sum, session) => sum + session.wrongCount, 0);
@@ -3483,8 +3708,9 @@ function getFilteredGroupSessions() {
     const from = fromValue ? new Date(`${fromValue}T00:00:00`) : null;
     const to = toValue ? new Date(`${toValue}T23:59:59`) : null;
 
+    const studentsById = new Map(state.students.map(student => [student.id, student]));
     return state.sessions.filter(session => {
-        const student = state.students.find(item => item.id === session.studentId) || {};
+        const student = studentsById.get(session.studentId) || {};
         const date = new Date(session.date);
         const sessionAge = safeNumber(session.studentAge ?? student.age, null);
         const sessionGender = session.studentGender || student.gender || '';
@@ -3503,8 +3729,9 @@ function getFilteredGroupSessions() {
     }).map(normalizeSession);
 }
 
-function buildGroupReportEntries(sessions, testFilter = '') {
-    const entries = [{ classification: 'الإجمالي', name: 'جميع النتائج', summary: summarizeSessions(sessions) }];
+function buildGroupReportEntries(sessions, testFilter = '', alreadyNormalized = false) {
+    const normalized = alreadyNormalized ? sessions : sessions.map(normalizeSession);
+    const entries = [{ classification: 'الإجمالي', name: 'جميع النتائج', summary: summarizeSessions(normalized, true) }];
     const mainGroups = [
         { label: 'بصري', types: TEST_TYPES.filter(type => type.startsWith('visual')) },
         { label: 'سمعي', types: TEST_TYPES.filter(type => type.startsWith('auditory')) }
@@ -3514,7 +3741,7 @@ function buildGroupReportEntries(sessions, testFilter = '') {
             entries.push({
                 classification: 'نوع رئيسي',
                 name: group.label,
-                summary: summarizeSessions(sessions.filter(session => group.types.includes(session.testType)))
+                summary: summarizeSessions(normalized.filter(session => group.types.includes(session.testType)), true)
             });
         });
     }
@@ -3522,7 +3749,7 @@ function buildGroupReportEntries(sessions, testFilter = '') {
         entries.push({
             classification: 'نوع فرعي',
             name: getTestArabicName(type),
-            summary: summarizeSessions(sessions.filter(session => session.testType === type))
+            summary: summarizeSessions(normalized.filter(session => session.testType === type), true)
         });
     });
     return entries;
@@ -3570,8 +3797,8 @@ function formalTrialCount(session) {
     return rawTrials.length || safeNumber(session.trialsCount, 0);
 }
 
-function buildGroupTrialsTotalsRows(sessions, testFilter = '') {
-    const normalized = sessions.map(normalizeSession);
+function buildGroupTrialsTotalsRows(sessions, testFilter = '', alreadyNormalized = false) {
+    const normalized = alreadyNormalized ? sessions : sessions.map(normalizeSession);
     const rows = [['النطاق', 'نوع الاختبار', 'مجموع المحاولات الرسمية']];
     TEST_TYPES.filter(type => !testFilter || type === testFilter).forEach(type => {
         rows.push([
@@ -3590,13 +3817,16 @@ function buildGroupTrialsTotalsRows(sessions, testFilter = '') {
     return rows;
 }
 
-function buildGroupTrialDetailsRows(sessions) {
+function buildGroupTrialDetailsRows(sessions, limit = Infinity, alreadyNormalized = false) {
     const rows = [[
         'اسم الطالب', 'الفئة', 'القسم', 'نوع الاختبار', 'رقم المحاولة',
         'المثير', 'النتيجة', 'زمن الاستجابة (مللي ثانية)', 'حالة الاحتساب'
     ]];
-    sessions.map(normalizeSession).forEach(session => {
-        (session.trials || []).forEach(trial => rows.push([
+    const normalized = alreadyNormalized ? sessions : sessions.map(normalizeSession);
+    for (const session of normalized) {
+        for (const trial of session.trials || []) {
+            if (rows.length - 1 >= limit) return rows;
+            rows.push([
             session.studentName || 'حالة غير مسماة',
             session.studentCategory || 'غير محدد',
             session.testType?.startsWith('visual') ? 'بصري' : 'سمعي',
@@ -3606,8 +3836,9 @@ function buildGroupTrialDetailsRows(sessions) {
             getTrialResultMeta(trial.result).label,
             trial.latency === null || trial.latency === undefined ? '' : milliseconds(trial.latency),
             getTrialCalculationStatus(trial, session)
-        ]));
-    });
+            ]);
+        }
+    }
     return rows;
 }
 
@@ -3634,7 +3865,8 @@ function buildWideModalitySheet(sessions, modality) {
         'عدد المحاولات الخاطئة',
         'عدد الاستجابات المبكرة',
         'عدد الاستجابات المتأخرة',
-        'عدد الاستجابات الفائتة'
+        'عدد الاستجابات الفائتة',
+        'وسيط زمن الاستجابة (مللي ثانية)'
     ];
     const rows = [[], []];
 
@@ -3700,6 +3932,7 @@ function buildWideModalitySheet(sessions, modality) {
                 const trialValues = Array(trialsPerTest).fill('');
                 const counts = { correct: 0, wrong: 0, early: 0, late: 0, miss: 0 };
                 let validTotal = 0;
+                let validCorrectTimes = [];
                 if (session) {
                     [...(session.trials || [])]
                         .sort((first, second) => safeNumber(first.index, 0) - safeNumber(second.index, 0))
@@ -3712,7 +3945,7 @@ function buildWideModalitySheet(sessions, modality) {
                             const category = getTrialAnalysisCategory(trial, session);
                             if (Object.prototype.hasOwnProperty.call(counts, category)) counts[category] += 1;
                         });
-                    const validCorrectTimes = getCorrectReactionTimes(session).map(time => milliseconds(time));
+                    validCorrectTimes = getCorrectReactionTimes(session).map(time => milliseconds(time));
                     validCorrectTimes.forEach(time => allCorrectTimes.push(time));
                     validTotal = validCorrectTimes.reduce((sum, time) => sum + time, 0);
                 }
@@ -3725,6 +3958,7 @@ function buildWideModalitySheet(sessions, modality) {
                     counts.early,
                     counts.late,
                     counts.miss,
+                    validCorrectTimes.length ? Math.round(median(validCorrectTimes)) : '',
                     validTotal
                 );
             });
@@ -3819,9 +4053,32 @@ function configureWideReactionWorksheet(sheet, sheetDefinition, xlsxLibrary) {
     }
 }
 
+function scheduleGroupReportRender({ immediate = false } = {}) {
+    clearTimeout(groupReportRenderTimer);
+    if (immediate) {
+        loadGroupReport();
+        return;
+    }
+    groupReportRenderTimer = setTimeout(loadGroupReport, 120);
+}
+
 function loadGroupReport() {
+    const categorySelect = document.getElementById('cfgGroupCategory');
+    if (categorySelect) {
+        const known = new Set(Array.from(categorySelect.options, option => option.value));
+        const categories = [...state.students.map(student => student.category), ...state.sessions.map(session => session.studentCategory)];
+        categories.filter(Boolean).forEach(category => {
+            if (known.has(category)) return;
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category;
+            categorySelect.appendChild(option);
+            known.add(category);
+        });
+    }
+
     const sessions = getFilteredGroupSessions();
-    const overall = summarizeSessions(sessions);
+    const overall = summarizeSessions(sessions, true);
     document.querySelectorAll('.lblGroupPrintDate').forEach(element => {
         element.innerText = new Date().toLocaleDateString('ar-EG');
     });
@@ -3848,7 +4105,7 @@ function loadGroupReport() {
     setText('lblGroupLateResponses', overall.lateResponses);
 
     const testFilter = document.getElementById('cfgGroupTestType')?.value || '';
-    const rows = buildGroupReportEntries(sessions, testFilter).filter(row => row.classification !== 'الإجمالي');
+    const rows = buildGroupReportEntries(sessions, testFilter, true).filter(row => row.classification !== 'الإجمالي');
 
     const tbody = document.getElementById('groupSummaryTableBody');
     if (tbody) {
@@ -3879,27 +4136,13 @@ function loadGroupReport() {
     const totalsBody = document.getElementById('groupTrialsTotalsBody');
     if (totalsBody) {
         totalsBody.innerHTML = '';
-        buildGroupTrialsTotalsRows(sessions, testFilter).slice(1).forEach(row => {
+        buildGroupTrialsTotalsRows(sessions, testFilter, true).slice(1).forEach(row => {
             const tr = document.createElement('tr');
             tr.innerHTML = `<td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1])}</td><td>${row[2]}</td>`;
             totalsBody.appendChild(tr);
         });
     }
 
-    const detailsBody = document.getElementById('groupTrialDetailsBody');
-    if (detailsBody) {
-        detailsBody.innerHTML = '';
-        buildGroupTrialDetailsRows(sessions).slice(1).forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = row.map((value, index) => `<td>${index === 7 && value === '' ? '—' : escapeHtml(value)}</td>`).join('');
-            detailsBody.appendChild(tr);
-        });
-        if (!detailsBody.children.length) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="8">لا توجد محاولات رسمية مطابقة لعوامل التصفية.</td>';
-            detailsBody.appendChild(tr);
-        }
-    }
 
     const subtestRows = rows.filter(row => row.classification === 'نوع فرعي');
     const labels = subtestRows.map(row => row.name);
@@ -3942,10 +4185,14 @@ class TestEngine {
     constructor(testType) {
         this.testType = testType;
         this.config = { ...DEFAULT_GENERAL_SETTINGS, ...deepClone(state.settings.general) };
+        // An active test must not inherit a remote settings update half way
+        // through its trials.  Freeze all test-facing configuration at launch.
+        this.stimuliSnapshot = deepClone(this.getLiveStimuliConfig());
+        this.instructionSnapshot = state.settings.instructions[this.testType] || '';
         this.student = state.students.find(student => student.id === state.activeStudentId) || state.sessionStudent;
         this.responseCategory = canonicalResponseCategory(this.student?.category);
         this.responseLimits = getResponseLimits(this.responseCategory);
-        this.responseTimeoutMs = this.responseLimits.missed.to;
+        this.responseTimeoutMs = this.responseLimits.correct.to;
         this.formalTrialsList = this.buildTrialSequence(this.config.trialsCount);
         const practiceSeedCount = this.config.practiceOpenEnded
             ? Math.max(10, this.config.practiceTrialsCount || 0)
@@ -3975,9 +4222,15 @@ class TestEngine {
         this.assetPreparationError = null;
         this.audioRetryPending = false;
         this.hasEnded = false;
+        this.sessionStartRequested = false;
     }
 
     init() {
+        const startButton = document.getElementById('arenaStartBtn');
+        if (startButton) {
+            startButton.disabled = false;
+            startButton.removeAttribute('aria-busy');
+        }
         this.showOverlay();
         this.showStep('arenaStepInstructions');
         this.setupInstructionsView();
@@ -4032,7 +4285,7 @@ class TestEngine {
         document.getElementById('arenaTestTitle').innerText = testName;
         const currentTestName = document.getElementById('arenaCurrentTestName');
         if (currentTestName) currentTestName.innerText = `الاختبار ${testName}`;
-        document.getElementById('arenaInstructionText').innerHTML = sanitizeInstructionHtml(state.settings.instructions[this.testType] || '');
+        document.getElementById('arenaInstructionText').innerHTML = sanitizeInstructionHtml(this.instructionSnapshot);
         const keymapBox = document.getElementById('arenaKeymapPreview');
         keymapBox.innerHTML = '';
         keymapBox.style.display = 'none';
@@ -4056,9 +4309,13 @@ class TestEngine {
         }
     }
 
-    getStimuliConfig() {
+    getLiveStimuliConfig() {
         const configKey = this.testType.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
         return state.settings.stimuli[configKey] || { targets: [], distractors: [] };
+    }
+
+    getStimuliConfig() {
+        return this.stimuliSnapshot || this.getLiveStimuliConfig();
     }
 
     buildTrialSequence(total) {
@@ -4093,6 +4350,13 @@ class TestEngine {
     }
 
     async startSessionFlow() {
+        if (this.sessionStartRequested || this.isStopped || this.hasEnded) return;
+        this.sessionStartRequested = true;
+        const startButton = document.getElementById('arenaStartBtn');
+        if (startButton) {
+            startButton.disabled = true;
+            startButton.setAttribute('aria-busy', 'true');
+        }
         try {
             if (this.testType.includes('auditory')) await window.appAudio?.init();
             await this.assetsReady;
@@ -4108,6 +4372,11 @@ class TestEngine {
             if (shouldPractice) this.startPracticeCountdown();
             else this.startFormalCountdown();
         } catch (error) {
+            this.sessionStartRequested = false;
+            if (startButton) {
+                startButton.disabled = false;
+                startButton.removeAttribute('aria-busy');
+            }
             console.error('Could not prepare the auditory test:', error);
             showDataStatus('تعذر تهيئة الصوت للاختبار السمعي. لم تتوقف البطارية ويمكنك إعادة المحاولة.', 'error', {
                 label: 'إعادة المحاولة',
@@ -4526,6 +4795,7 @@ class TestEngine {
 
         if (state.testQueue.length > 0) {
             showNextTestTransition(this.testType, state.testQueue[0]);
+            flushDeferredRemoteSync();
             return;
         }
 
@@ -4538,6 +4808,7 @@ class TestEngine {
         document.getElementById('sumAvgLatency').innerText = `${milliseconds(avgReactionTime)} مللي ثانية`;
         document.getElementById('sumMedianLatency').innerText = `${milliseconds(medianReactionTime)} مللي ثانية`;
         document.getElementById('sumStdDev').innerText = stdDevReactionTime === null ? '—' : `${milliseconds(stdDevReactionTime)} مللي ثانية`;
+        flushDeferredRemoteSync();
     }
 
     stop() {
@@ -4552,6 +4823,7 @@ class TestEngine {
         this.activeAudioPlayback = null;
         this.trialActive = false;
         this.waitingForStimulus = false;
+        this.sessionStartRequested = false;
         this.closeOverlay();
     }
 }
@@ -4597,6 +4869,9 @@ window.addEventListener("keydown", (e) => {
 
 // Launch active test helper
 function startTestEngine(testType) {
+    if (state.currentRunningTest && !state.currentRunningTest.hasEnded) {
+        state.currentRunningTest.stop();
+    }
     state.currentRunningTest = new TestEngine(testType);
     state.currentRunningTest.init();
 }
@@ -4621,9 +4896,10 @@ document.getElementById("proceedNextTestBtn").addEventListener("click", () => {
 document.getElementById("stopSessionBtn").addEventListener("click", () => {
     state.testQueue = [];
     if (state.currentRunningTest) {
-        state.currentRunningTest.closeOverlay();
+        state.currentRunningTest.stop();
         state.currentRunningTest = null;
     }
+    flushDeferredRemoteSync();
     switchView("results-view");
 });
 
@@ -4643,6 +4919,7 @@ document.getElementById("arenaCancelBtn").addEventListener("click", () => {
         state.currentRunningTest.stop();
         state.currentRunningTest = null;
     }
+    flushDeferredRemoteSync();
 });
 
 document.getElementById("arenaStopMidTestBtn").addEventListener("click", () => {
@@ -4650,6 +4927,7 @@ document.getElementById("arenaStopMidTestBtn").addEventListener("click", () => {
         state.currentRunningTest.stop();
         state.currentRunningTest = null;
     }
+    flushDeferredRemoteSync();
 });
 
 document.getElementById("summaryCloseBtn").addEventListener("click", () => {
@@ -4657,6 +4935,7 @@ document.getElementById("summaryCloseBtn").addEventListener("click", () => {
         state.currentRunningTest.closeOverlay();
         state.currentRunningTest = null;
     }
+    flushDeferredRemoteSync();
 });
 
 document.getElementById("summaryViewReportBtn").addEventListener("click", () => {
