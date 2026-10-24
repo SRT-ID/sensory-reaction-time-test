@@ -36,7 +36,10 @@ let cloudPushPromise = null;
 let deferredRemoteSync = false;
 let groupReportRenderTimer = null;
 let realtimeUiRefreshTimer = null;
-const APP_CACHE_VERSION = '20261024-11';
+const APP_CACHE_VERSION = '20261024-14';
+// هذا الكود مؤقتًا داخل الواجهة بناءً على طلب صاحب التطبيق. لا يظهر للمستخدم
+// في أي زر أو رسالة، وسيُنقل لاحقًا إلى صلاحيات دخول آمنة.
+const DELETION_CONFIRMATION_CODE = '2026';
 let pendingRealtimeUiRefresh = { settingsChanged: false, recordsChanged: false };
 
 // Keep a lightweight local record of what has already been confirmed in the
@@ -93,6 +96,16 @@ function activateFirebaseUser(user) {
     return user;
 }
 
+function requestDeletionAuthorization() {
+    const enteredCode = window.prompt('أدخل كود الحذف للتأكيد:');
+    if (enteredCode === null) return false;
+    if (enteredCode !== DELETION_CONFIRMATION_CODE) {
+        alert('كود الحذف غير صحيح.');
+        return false;
+    }
+    return true;
+}
+
 // Global State
 const state = {
     students: [],
@@ -118,12 +131,12 @@ const state = {
             'موحد': { correct: { from: 200, to: 4000 }, late: { from: 4001, to: 4001 }, missed: { from: 4002, to: 4002 } }
         },
         instructions: {
-            'visual-simple': "ستظهر دائرة خضراء في وسط الشاشة.<br>عند ظهور الدائرة اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تظهر الدائرة.",
-            'visual-discriminative': "ستظهر ألوان مختلفة في وسط الشاشة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند ظهور الدائرة الخضراء.<br>تجاهل الألوان الأخرى (الحمراء والزرقاء والصفراء) ولا تضغط على أي زر.",
-            'visual-choice': "ستظهر مثيرات بصرية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للمثير بأسرع ما يمكن.",
-            'auditory-simple': "ستسمع صوت كلب حقيقيًا.<br>عند سماع الصوت اضغط على زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.<br>لا تفعل شيئاً إذا لم تسمع الصوت.",
-            'auditory-discriminative': "ستسمع أصوات حيوانات حقيقية مختلفة.<br>اضغط على زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة ولا تضغط على أي زر.",
-            'auditory-choice': "ستسمع مثيرات سمعية مختلفة، ولكل مثير زر استجابة محدد.<br>استخدم دليل الاستجابة الظاهر قبل بدء الاختبار واضغط الزر المطابق للصوت بأسرع ما يمكن."
+            'visual-simple': "ستظهر دائرة <b>خضراء</b> في وسط الشاشة.<br>عند ظهورها اضغط زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.",
+            'visual-discriminative': "ستظهر دوائر بألوان مختلفة في وسط الشاشة.<br>اضغط زر <b>المسافة (Spacebar)</b> فقط عند ظهور الدائرة <b>الخضراء</b>.<br>تجاهل الدوائر <b>الحمراء والزرقاء والصفراء</b> ولا تضغط أي زر عند ظهورها.",
+            'visual-choice': "ستظهر دوائر ملونة في وسط الشاشة.<br>عند ظهور الدائرة <b>الخضراء</b> اضغط سهم <b>أعلى (↑)</b>.<br>عند ظهور الدائرة <b>الزرقاء</b> اضغط سهم <b>أسفل (↓)</b>.<br>عند ظهور الدائرة <b>الصفراء</b> اضغط سهم <b>يمين (→)</b>.",
+            'auditory-simple': "ستسمع صوت <b>الكلب</b>.<br>عند سماع صوت الكلب اضغط زر <b>المسافة (Spacebar)</b> بأسرع ما يمكن.",
+            'auditory-discriminative': "ستسمع صوتَي <b>الكلب</b> و<b>القطة</b>.<br>اضغط زر <b>المسافة (Spacebar)</b> فقط عند سماع صوت الكلب.<br>تجاهل صوت القطة ولا تضغط أي زر عند سماعه.",
+            'auditory-choice': "ستسمع صوتَي <b>الكلب</b> و<b>القطة</b>.<br>عند سماع صوت الكلب اضغط المفتاح <b>A</b>.<br>عند سماع صوت القطة اضغط المفتاح <b>B</b>."
         },
         stimuli: {
             visualSimple: {
@@ -193,6 +206,7 @@ const LEGACY_CATEGORY_ALIASES = Object.freeze({
 });
 
 const DEFAULT_INSTRUCTIONS = Object.freeze(deepClone(state.settings.instructions));
+const INSTRUCTION_STIMULI_VERSION = 1;
 
 const TEST_TYPES = [
     'visual-simple',
@@ -230,60 +244,9 @@ function makeEntityId(prefix) {
     return `${prefix}_${unique}`;
 }
 
-// 1–100: STU-01 … STU-100, then STU-A1 … STU-A100, STU-B1 … and so on.
-function studentCodeSuffixFor(serial) {
-    const safeSerial = Math.max(1, Math.floor(Number(serial) || 1));
-    if (safeSerial <= 100) return String(safeSerial).padStart(2, '0');
-
-    const afterFirstHundred = safeSerial - 101;
-    let letterNumber = Math.floor(afterFirstHundred / 100);
-    let letters = '';
-    do {
-        letters = String.fromCharCode(65 + (letterNumber % 26)) + letters;
-        letterNumber = Math.floor(letterNumber / 26) - 1;
-    } while (letterNumber >= 0);
-    return `${letters}${(afterFirstHundred % 100) + 1}`;
-}
-
-function makeStudentCode(serial) {
-    return `STU-${studentCodeSuffixFor(serial)}`;
-}
-
-function makeNextStudentCode() {
-    const assignedCodes = new Set(state.students.map(student => String(student.code || '').toUpperCase()));
-    let serial = 1;
-    while (assignedCodes.has(makeStudentCode(serial).toUpperCase())) serial += 1;
-    return makeStudentCode(serial);
-}
-
-function stableStudentOrder(first, second) {
-    const firstDate = new Date(first?.createdAt || first?.updatedAt || 0).getTime();
-    const secondDate = new Date(second?.createdAt || second?.updatedAt || 0).getTime();
-    if (firstDate !== secondDate) return firstDate - secondDate;
-    return String(first?.id || '').localeCompare(String(second?.id || ''));
-}
-
-function applyCompactStudentCodes() {
-    const orderedStudents = [...state.students].sort(stableStudentOrder);
-    const codeByStudentId = new Map();
-    let changed = false;
-
-    orderedStudents.forEach((student, index) => {
-        const code = makeStudentCode(index + 1);
-        codeByStudentId.set(student.id, code);
-        if (student.code !== code) {
-            student.code = code;
-            changed = true;
-        }
-    });
-    state.sessions.forEach(session => {
-        const code = codeByStudentId.get(session.studentId);
-        if (code && session.studentCode !== code) {
-            session.studentCode = code;
-            changed = true;
-        }
-    });
-    return changed;
+function makeStudentCode(id) {
+    const compact = String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
+    return `STU-${compact || Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 function escapeHtml(value) {
@@ -297,8 +260,15 @@ function escapeHtml(value) {
 
 function sanitizeInstructionHtml(value) {
     return escapeHtml(value)
+        .replace(/\r?\n/g, '<br>')
         .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
         .replace(/&lt;(\/)?(b|strong|ul|ol|li)&gt;/gi, '<$1$2>');
+}
+
+function instructionTextForEditor(value) {
+    return String(value || '')
+        .replace(/<br\s*\/?\s*>/gi, '\n')
+        .replace(/<\/?(b|strong)>/gi, '');
 }
 
 function safeNumber(value, fallback = null) {
@@ -886,6 +856,12 @@ function migrateLoadedState() {
         state.settings.instructions['auditory-choice'] = DEFAULT_INSTRUCTIONS['auditory-choice'];
         state.settings.realAudioCatalogVersion = 4;
     }
+    // Apply the six instructions that match the currently configured default
+    // stimuli once.  After this, the specialist's saved manual edits stay intact.
+    if (state.settings.instructionsStimuliVersion !== INSTRUCTION_STIMULI_VERSION) {
+        state.settings.instructions = deepClone(DEFAULT_INSTRUCTIONS);
+        state.settings.instructionsStimuliVersion = INSTRUCTION_STIMULI_VERSION;
+    }
     // Preserve saved custom settings. Defaults fill only missing test settings;
     // earlier code reset both objects on every startup.
     state.settings.stimuli = normalizeStimuliSettings(state.settings.stimuli);
@@ -909,7 +885,7 @@ function migrateLoadedState() {
             category: '',
             ...student,
             id,
-            code: student.code || '',
+            code: student.code || makeStudentCode(id),
             updatedAt: student.updatedAt || student.createdAt || new Date().toISOString()
         };
     });
@@ -923,7 +899,6 @@ function migrateLoadedState() {
             updatedAt: session.updatedAt || session.date || new Date().toISOString()
         };
     });
-    return applyCompactStudentCodes();
 }
 
 // Global chart references
@@ -980,8 +955,7 @@ function loadData() {
             };
         }
 
-        const studentCodesChanged = migrateLoadedState();
-        if (studentCodesChanged) markPendingCloudChanges();
+        migrateLoadedState();
 
         // Set default active student if exists
         if (state.students.length > 0) {
@@ -1076,7 +1050,8 @@ async function syncFromFirestore(writeBack = false) {
                     general: { ...state.settings.general, ...(remoteSettings.general || {}) },
                     responses: normalizeResponseSettings(remoteSettings.responses || state.settings.responses),
                     instructions: { ...state.settings.instructions, ...(remoteSettings.instructions || {}) },
-                    stimuli: { ...state.settings.stimuli, ...(remoteSettings.stimuli || {}) }
+                    stimuli: { ...state.settings.stimuli, ...(remoteSettings.stimuli || {}) },
+                    instructionsStimuliVersion: remoteSettings.instructionsStimuliVersion || 0
                 };
             }
         }
@@ -1100,8 +1075,7 @@ async function syncFromFirestore(writeBack = false) {
         const allowedLocalSessions = state.sessions.filter(session => !sharedDeletedIds.sessions.has(session.id));
         state.students = mergeRecordsById(allowedLocalStudents, allowedRemoteStudents);
         state.sessions = mergeRecordsById(allowedLocalSessions, allowedRemoteSessions).map(normalizeSession);
-        const studentCodesChanged = migrateLoadedState();
-        if (studentCodesChanged) markPendingCloudChanges();
+        migrateLoadedState();
         await migrateEmbeddedStimuliToStorage();
         localStorage.setItem('sensory_students', JSON.stringify(state.students));
         localStorage.setItem('sensory_sessions', JSON.stringify(state.sessions));
@@ -1350,7 +1324,7 @@ function refreshStudentLookupOptions() {
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
         .forEach(student => {
             const option = document.createElement('option');
-            option.value = `${student.code || 'STU-غير مسجل'} — ${student.name || 'حالة غير مسماة'}`;
+            option.value = `${student.code || makeStudentCode(student.id)} — ${student.name || 'حالة غير مسماة'}`;
             list.appendChild(option);
         });
 }
@@ -1419,6 +1393,41 @@ function initGeneralEventListeners() {
     });
 
 
+    // Launch Test buttons in Grid (legacy - kept for home dashboard quick launch)
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".launch-test-btn");
+        if (!btn) return;
+        const testType = btn.getAttribute("data-test-type");
+        
+        // Build a quick student from activeStudentId if available
+        let qs = state.sessionStudent;
+        if (!qs && state.activeStudentId) {
+            const st = state.students.find(s => s.id === state.activeStudentId);
+            if (st) qs = { ...st };
+        }
+        if (!qs) {
+            const id = makeEntityId('student');
+            const anonymousStudent = {
+                id,
+                code: makeStudentCode(id),
+                name: `حالة غير مسماة #${String(Date.now()).slice(-6)}`,
+                age: null,
+                gender: '',
+                iq: null,
+                category: '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            state.students.push(anonymousStudent);
+            state.activeStudentId = anonymousStudent.id;
+            qs = anonymousStudent;
+            saveData();
+        }
+        state.sessionStudent = qs;
+        state.testQueue = [testType];
+        startNextTestFromQueue();
+    });
+
     // ===================== Tests-View Form Handlers =====================
     // Select all / Clear all test checkboxes
     document.getElementById("selectAllTestsBtn")?.addEventListener("click", () => {
@@ -1473,7 +1482,6 @@ function initGeneralEventListeners() {
         const specName = document.getElementById("tsSpecialistName")?.value.trim() || '';
         const specTitle = document.getElementById("tsSpecialistTitle")?.value.trim() || '';
         const center = document.getElementById("tsCenter")?.value.trim() || '';
-        const sessionDate = document.getElementById("tsSessionDate")?.value;
 
         const selectedTests = Array.from(document.querySelectorAll(".test-checkbox:checked")).map(cb => cb.value);
         if (selectedTests.length === 0) { alert("يرجى تحديد اختبار واحد على الأقل."); return; }
@@ -1507,7 +1515,7 @@ function initGeneralEventListeners() {
             const id = makeEntityId('student');
             existingStudent = {
                 id,
-                code: makeNextStudentCode(),
+                code: makeStudentCode(id),
                 name: enteredName,
                 age,
                 gender,
@@ -1525,12 +1533,8 @@ function initGeneralEventListeners() {
         
         state.activeStudentId = existingStudent.id;
         state.sessionStudent = { ...existingStudent };
-        const now = new Date();
-        const applicationDate = sessionDate
-            ? new Date(`${sessionDate}T${now.toTimeString().slice(0, 8)}`).toISOString()
-            : now.toISOString();
-        state.sessionSpecialist = (specName || specTitle || center || sessionDate)
-            ? { name: specName, title: specTitle, center, date: applicationDate }
+        state.sessionSpecialist = (specName || specTitle || center)
+            ? { name: specName, title: specTitle, center }
             : null;
         state.testQueue = [...selectedTests];
         
@@ -1622,6 +1626,7 @@ function initGeneralEventListeners() {
     // Delete Session Action
     document.getElementById("deleteSessionBtn")?.addEventListener("click", () => {
         if (!state.activeSession) return;
+        if (!requestDeletionAuthorization()) return;
         if (confirm('هل أنت متأكد من حذف هذه الجلسة نهائيًا؟')) {
             const sessionId = state.activeSession.id;
             state.sessions = state.sessions.filter(s => s.id !== sessionId);
@@ -1667,6 +1672,7 @@ function initGeneralEventListeners() {
         const studentId = document.getElementById('historyStudentSelect')?.value;
         const student = state.students.find(item => item.id === studentId);
         if (!student) return;
+        if (!requestDeletionAuthorization()) return;
         if (!confirm(`هل أنت متأكد من حذف ${student.name || 'هذا الطالب'} وكل جلساته نهائيًا؟`)) return;
         deleteStudentRecord(studentId);
     });
@@ -1826,7 +1832,10 @@ function populateSettingsForms() {
     };
     Object.entries(instructionFields).forEach(([id, key]) => {
         const element = document.getElementById(id);
-        if (element) { element.readOnly = true; element.value = (DEFAULT_INSTRUCTIONS[key] || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''); }
+        if (element) {
+            element.readOnly = false;
+            element.value = instructionTextForEditor(state.settings.instructions[key] || DEFAULT_INSTRUCTIONS[key]);
+        }
     });
 
     syncPracticeSettingsUI();
@@ -3620,7 +3629,7 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
     ]));
 
     const summaryRows = [[
-        "رقم الجلسة", "اسم الطالب", "الفئة", "نوع الاختبار", "تاريخ التطبيق",
+        "رقم الجلسة", "اسم الطالب", "الفئة", "نوع الاختبار", "وقت التنفيذ",
         "المحاولات الرسمية", "المحاولات التدريبية غير المحتسبة", "الصحيح الكلي", "الاستجابات الصحيحة بضغطة",
         "التجاهل الصحيح", "الاختيار الخاطئ", "الاستجابات الفائتة", "الضغط الخاطئ على المشتت", "الاستجابة المبكرة", "الاستجابة المتأخرة المستبعدة",
         "الدقة %", "نسبة الخطأ %", "متوسط زمن الاستجابة (مللي ثانية)", "وسيط زمن الاستجابة (مللي ثانية)", "الانحراف المعياري (مللي ثانية)", "أسرع استجابة (مللي ثانية)", "أبطأ استجابة (مللي ثانية)",
@@ -4867,7 +4876,7 @@ class TestEngine {
             studentCategory: student.category || '',
             specialist: state.sessionSpecialist ? deepClone(state.sessionSpecialist) : null,
             testType: this.testType,
-            date: state.sessionSpecialist?.date || new Date().toISOString(),
+            date: new Date().toISOString(),
             duration,
             trialsCount,
             formalTrialsCount: trialsCount,
