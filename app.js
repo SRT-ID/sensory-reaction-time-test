@@ -54,6 +54,7 @@ const pendingCloudChanges = {
 };
 const MAX_GROUP_DETAIL_ROWS = 500;
 const MAX_DASHBOARD_CHART_POINTS = 200;
+const DELETE_CONFIRMATION_CODE = '2026';
 
 if (firebaseConfig.apiKey && typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') {
     try {
@@ -1172,6 +1173,21 @@ async function deleteRemoteRecord(collectionName, id) {
     }
 }
 
+function confirmProtectedDeletion(itemDescription) {
+    const confirmed = window.confirm(`هل أنت متأكد من حذف ${itemDescription} نهائيًا؟`);
+    if (!confirmed) return false;
+
+    const enteredCode = window.prompt(`للتأكيد، اكتب كود الحذف (${DELETE_CONFIRMATION_CODE}) ثم اضغط موافق.`);
+    if (enteredCode === null) return false;
+
+    if (enteredCode.trim() !== DELETE_CONFIRMATION_CODE) {
+        alert('كود الحذف غير صحيح. لم يتم حذف أي بيانات.');
+        return false;
+    }
+
+    return true;
+}
+
 function deleteStudentRecord(id) {
     const relatedSessionIds = state.sessions.filter(session => session.studentId === id).map(session => session.id);
     state.students = state.students.filter(student => student.id !== id);
@@ -1519,7 +1535,7 @@ function initGeneralEventListeners() {
     // Delete Session Action
     document.getElementById("deleteSessionBtn")?.addEventListener("click", () => {
         if (!state.activeSession) return;
-        if (confirm("هل أنت متأكد من حذف هذه الجلسة نهائياً؟")) {
+        if (confirmProtectedDeletion('هذه الجلسة')) {
             const sessionId = state.activeSession.id;
             state.sessions = state.sessions.filter(s => s.id !== sessionId);
             state.activeSession = null;
@@ -1564,7 +1580,7 @@ function initGeneralEventListeners() {
         const studentId = document.getElementById('historyStudentSelect')?.value;
         const student = state.students.find(item => item.id === studentId);
         if (!student) return;
-        if (!confirm(`هل تريد حذف ${student.name || 'هذا الطالب'} وكل جلساته نهائيًا؟`)) return;
+        if (!confirmProtectedDeletion(`${student.name || 'هذا الطالب'} وكل جلساته`)) return;
         deleteStudentRecord(studentId);
     });
 
