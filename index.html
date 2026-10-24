@@ -276,21 +276,8 @@
                                 <label for="tsStudentCategory">الفئة <span class="required-label">(إجباري)</span></label>
                                 <select id="tsStudentCategory" required>
                                     <option value="" selected disabled>اختر الفئة...</option>
-                                    <option value="إعاقة عقلية">إعاقة عقلية</option>
-                                    <option value="متلازمة داون">متلازمة داون</option>
-                                    <option value="اضطراب طيف التوحد">اضطراب طيف التوحد</option>
-                                    <option value="الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد">الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد</option>
-                                    <option value="اضطراب فرط الحركة وتشتت الانتباه ADHD">اضطراب فرط الحركة وتشتت الانتباه ADHD</option>
-                                    <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
-                                    <option value="طبيعي">طبيعي</option>
-                                <option value="الإعاقة البصرية">الإعاقة البصرية</option>
-<option value="الإعاقة السمعية">الإعاقة السمعية</option>
-<option value="صعوبات التعلم أو بطء التعلم">صعوبات التعلم أو بطء التعلم</option>
-<option value="اضطرابات النطق واللغة والتواصل">اضطرابات النطق واللغة والتواصل</option>
-<option value="الاضطرابات السلوكية والانفعالية">الاضطرابات السلوكية والانفعالية</option>
-<option value="التأخر النمائي الشامل عند الأطفال">التأخر النمائي الشامل عند الأطفال</option>
-<option value="أخرى">أخرى</option>
-</select><input id="tsStudentOtherCategory" type="text" maxlength="150" placeholder="اكتب اسم الفئة" aria-label="اسم الفئة الأخرى" hidden>
+                                </select>
+                                <input id="tsStudentOtherCategory" type="text" maxlength="150" placeholder="اكتب اسم الفئة" aria-label="اسم الفئة الأخرى" hidden>
                             </div>
                         </div>
                     </div>
@@ -418,7 +405,6 @@
                     <!-- Tab buttons -->
                     <div class="settings-tab-headers">
                         <button class="settings-tab-btn active" data-tab="general-settings">إعدادات عامة</button>
-                        <button class="settings-tab-btn" data-tab="response-settings">إعدادات الاستجابة</button>
                         <button class="settings-tab-btn" data-tab="stimuli-settings">إعدادات المثيرات</button>
                         <button class="settings-tab-btn" data-tab="instructions-settings">إعدادات تعليمات الاختبار</button>
                     </div>
@@ -488,27 +474,7 @@
                         </form>
                     </div>
 
-                    <!-- Tab Content 2: Response Settings -->
-                    <div class="settings-tab-content" id="response-settings">
-                        <div class="response-settings-intro">
-                            <h4>إعدادات الاستجابة</h4>
-                            <p>نطاق الاستجابة ثابت لجميع الفئات: من ٢٠٠ إلى ٤٠٠٠ مللي ثانية (٠٫٢–٤ ثوانٍ).</p>
-                        </div>
-                        <div class="response-settings-table-wrap">
-                            <table class="response-settings-table">
-                                <thead><tr><th>الفئات</th><th>المبكرة (مللي ثانية)</th><th>بداية النطاق</th><th>نهاية النطاق</th><th>انتهاء المهلة</th></tr></thead>
-                                <tbody id="responseSettingsTableBody"></tbody>
-                            </table>
-                        </div>
-                        <p class="response-settings-note">إذا انتهت مهلة ٤٠٠٠ مللي ثانية دون ضغط، تُسجل المحاولة «استجابة فائتة» بلا زمن استجابة، ولا تدخل في المتوسط أو الانحراف المعياري.</p>
-                        <div class="settings-validation-error" id="responseSettingsError" role="alert" hidden></div>
-                        <div class="form-actions">
-                            <button type="button" class="primary-btn" id="saveResponseSettingsBtn" hidden>حفظ إعدادات الاستجابة</button>
-                            <button type="button" class="secondary-btn" id="resetResponseSettingsBtn" hidden>استعادة الافتراضي</button>
-                        </div>
-                    </div>
-
-                    <!-- Tab Content 3: Stimuli Settings -->
+                    <!-- Tab Content 2: Stimuli Settings -->
                     <div class="settings-tab-content" id="stimuli-settings"><p>مثيرات وتعليمات افتراضية ثابتة.</p><div id="fixedStimulusInstruction"></div>
                         <div class="form-group" style="max-width: 350px; margin-bottom: 20px;">
                             <label for="cfgStimuliTestType">اختر نوع الاختبار للتعديل:</label>
@@ -548,7 +514,7 @@
                         </div>
                     </div>
 
-                    <!-- Tab Content 4: Instructions Settings -->
+                    <!-- Tab Content 3: Instructions Settings -->
                     <div class="settings-tab-content" id="instructions-settings">
                         <form id="instructionsSettingsForm" class="settings-form">
                             <div class="settings-grid-layout">
@@ -729,6 +695,18 @@
                                 <span style="font-size: 12px; color: var(--text-muted); display: block;">طريقة الاستجابة</span>
                                 <strong id="lblReportInputMethod" style="font-size: 14px; color: var(--text-main);">--</strong>
                             </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">المختص المنفذ</span>
+                                <strong id="lblReportSpecialistName" style="font-size: 16px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">الصفة الوظيفية</span>
+                                <strong id="lblReportSpecialistTitle" style="font-size: 14px; color: var(--text-main);">--</strong>
+                            </div>
+                            <div class="info-metric-item" style="text-align: center;">
+                                <span style="font-size: 12px; color: var(--text-muted); display: block;">المؤسسة / المركز</span>
+                                <strong id="lblReportSpecialistCenter" style="font-size: 14px; color: var(--text-main);">--</strong>
+                            </div>
                         </div>
 
                         <!-- Expanded Individual Statistics -->
@@ -873,20 +851,7 @@
                         <div class="selector-field">
                             <label for="cfgGroupCategory" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">الفئة:</label>
                             <select id="cfgGroupCategory" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo';">
-                                    <option value="">جميع الفئات</option>
-                                    <option value="إعاقة عقلية">إعاقة عقلية</option>
-                                    <option value="متلازمة داون">متلازمة داون</option>
-                                    <option value="اضطراب طيف التوحد">اضطراب طيف التوحد</option>
-                                    <option value="الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد">الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد</option>
-                                    <option value="اضطراب فرط الحركة وتشتت الانتباه ADHD">اضطراب فرط الحركة وتشتت الانتباه ADHD</option>
-                                    <option value="مزدوج الإعاقة">مزدوج الإعاقة</option>
-                                    <option value="طبيعي">طبيعي</option>
-                                <option value="الإعاقة البصرية">الإعاقة البصرية</option>
-<option value="الإعاقة السمعية">الإعاقة السمعية</option>
-<option value="صعوبات التعلم أو بطء التعلم">صعوبات التعلم أو بطء التعلم</option>
-<option value="اضطرابات النطق واللغة والتواصل">اضطرابات النطق واللغة والتواصل</option>
-<option value="الاضطرابات السلوكية والانفعالية">الاضطرابات السلوكية والانفعالية</option>
-<option value="التأخر النمائي الشامل عند الأطفال">التأخر النمائي الشامل عند الأطفال</option>
+                                <option value="">جميع الفئات</option>
 </select>
                         </div>
                         <div class="selector-field">
@@ -1184,7 +1149,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
-    <script src="audio.js"></script>
-    <script src="app.js"></script>
+    <script src="audio.js?v=20261024-8"></script>
+    <script src="app.js?v=20261024-8"></script>
 </body>
 </html>

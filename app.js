@@ -36,6 +36,8 @@ let cloudPushPromise = null;
 let deferredRemoteSync = false;
 let groupReportRenderTimer = null;
 let realtimeUiRefreshTimer = null;
+const APP_CACHE_VERSION = '20261024-8';
+let pendingRealtimeUiRefresh = { settingsChanged: false, recordsChanged: false };
 
 // Keep a lightweight local record of what has already been confirmed in the
 // cloud.  The old implementation uploaded every student and every session
@@ -185,7 +187,7 @@ const OFFLINE_AUDIO_STORE_NAME = 'audioFiles';
 
 const EARLY_RESPONSE_LIMIT_MS = 200;
 const DEFAULT_RESPONSE_SETTINGS = Object.freeze(deepClone(state.settings.responses));
-const RESPONSE_CATEGORY_ALIASES = Object.freeze({
+const LEGACY_CATEGORY_ALIASES = Object.freeze({
     '': 'غير محدد',
     'اضطراب فرط الحركة وتشتت الانتباه': 'اضطراب فرط الحركة وتشتت الانتباه ADHD'
 });
@@ -200,6 +202,22 @@ const TEST_TYPES = [
     'auditory-discriminative',
     'auditory-choice'
 ];
+
+const STUDENT_CATEGORIES = Object.freeze([
+    'إعاقة عقلية',
+    'متلازمة داون',
+    'اضطراب طيف التوحد',
+    'الإعاقة الذهنية المصاحبة لاضطراب طيف التوحد',
+    'اضطراب فرط الحركة وتشتت الانتباه ADHD',
+    'مزدوج الإعاقة',
+    'طبيعي',
+    'الإعاقة البصرية',
+    'الإعاقة السمعية',
+    'صعوبات التعلم أو بطء التعلم',
+    'اضطرابات النطق واللغة والتواصل',
+    'الاضطرابات السلوكية والانفعالية',
+    'التأخر النمائي الشامل عند الأطفال'
+]);
 
 const MAX_CHOICE_TARGETS = 3;
 
@@ -238,17 +256,31 @@ function safeNumber(value, fallback = null) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function canonicalResponseCategory(category) {
+function normalizeIdentityText(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('ar');
+}
+
+function canonicalStudentCategory(category) {
     const normalized = String(category || '').trim();
-    return RESPONSE_CATEGORY_ALIASES[normalized]
+    return LEGACY_CATEGORY_ALIASES[normalized]
         || normalized || 'غير محدد';
 }
 
-function normalizeResponseRange(range, fallback) {
-    return {
-        from: Math.round(safeNumber(range?.from, fallback.from)),
-        to: Math.round(safeNumber(range?.to, fallback.to))
+function populateCategorySelectors() {
+    const addOptions = (select, categories) => {
+        if (!select) return;
+        const existing = new Set([...select.options].map(option => option.value));
+        categories.forEach(category => {
+            if (existing.has(category)) return;
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category;
+            select.appendChild(option);
+        });
     };
+
+    addOptions(document.getElementById('tsStudentCategory'), [...STUDENT_CATEGORIES, 'أخرى']);
+    addOptions(document.getElementById('cfgGroupCategory'), STUDENT_CATEGORIES);
 }
 
 function normalizeResponseSettings() {
@@ -282,7 +314,7 @@ function getResponseLimits() {
 function getSessionResponseLimits(session) {
     // Stored sessions retain the classification rules in effect when recorded.
     const snapshot = session?.settingsSnapshot?.responses;
-    const saved = snapshot?.[session?.studentCategory] || snapshot?.[RESPONSE_CATEGORY_ALIASES[session?.studentCategory]] || snapshot?.['غير محدد'] || snapshot?.['موحد'];
+    const saved = snapshot?.[session?.studentCategory] || snapshot?.[LEGACY_CATEGORY_ALIASES[session?.studentCategory]] || snapshot?.['غير محدد'] || snapshot?.['موحد'];
     return saved && !validateResponseLimits(saved) ? deepClone(saved) : getResponseLimits();
 }
 
@@ -467,22 +499,31 @@ function flushDeferredRemoteSync() {
     });
 }
 
-function queueRealtimeUiRefresh() {
+function queueRealtimeUiRefresh({ settingsChanged = false, recordsChanged = true } = {}) {
     if (isTestInProgress()) {
         deferredRemoteSync = true;
         return;
     }
+    pendingRealtimeUiRefresh.settingsChanged ||= settingsChanged;
+    pendingRealtimeUiRefresh.recordsChanged ||= recordsChanged;
     clearTimeout(realtimeUiRefreshTimer);
     realtimeUiRefreshTimer = setTimeout(() => {
-        initSettingsForms();
-        updateUI();
-        if (document.getElementById('results-view')?.classList.contains('active-screen')) {
-            populateSessionsList();
-            if (document.getElementById('btnGroupTab')?.classList.contains('active')) {
-                scheduleGroupReportRender();
-            }
+        const changes = pendingRealtimeUiRefresh;
+        pendingRealtimeUiRefresh = { settingsChanged: false, recordsChanged: false };
+        const settingsOpen = document.getElementById('settings-view')?.classList.contains('active-screen');
+        const homeOpen = document.getElementById('home-view')?.classList.contains('active-screen');
+        const resultsOpen = document.getElementById('results-view')?.classList.contains('active-screen');
+        const groupOpen = document.getElementById('btnGroupTab')?.classList.contains('active');
+
+        // Do work only for the screen the examiner is currently using.  A
+        // remote record must never rebuild hidden settings cards or reports.
+        if (changes.settingsChanged && settingsOpen) initSettingsForms();
+        if (changes.recordsChanged && homeOpen) updateUI();
+        if (changes.recordsChanged && resultsOpen) {
+            if (groupOpen) scheduleGroupReportRender();
+            else populateSessionsList();
         }
-    }, 100);
+    }, 500);
 }
 
 function applySharedRealtimeSnapshot(collectionName, snapshot) {
@@ -493,6 +534,8 @@ function applySharedRealtimeSnapshot(collectionName, snapshot) {
     }
 
     let changed = false;
+    let settingsChanged = false;
+    let recordsChanged = false;
     snapshot.docChanges().forEach(change => {
         const id = change.doc.id;
         const data = { ...change.doc.data(), id };
@@ -512,6 +555,7 @@ function applySharedRealtimeSnapshot(collectionName, snapshot) {
             };
             cloudRecordFingerprints.settings = stableFingerprint(state.settings);
             changed = true;
+            settingsChanged = true;
             return;
         }
 
@@ -524,6 +568,7 @@ function applySharedRealtimeSnapshot(collectionName, snapshot) {
                 state[targetCollection] = state[targetCollection].filter(record => record.id !== recordId);
                 cloudRecordFingerprints[targetCollection].delete(recordId);
                 changed = true;
+                recordsChanged = true;
             }
             return;
         }
@@ -536,6 +581,7 @@ function applySharedRealtimeSnapshot(collectionName, snapshot) {
             if (index !== -1) records.splice(index, 1);
             cloudRecordFingerprints[collectionName].delete(id);
             changed = index !== -1;
+            recordsChanged ||= changed;
             return;
         }
         const record = collectionName === 'sessions' ? normalizeSession(data) : data;
@@ -543,6 +589,7 @@ function applySharedRealtimeSnapshot(collectionName, snapshot) {
         else records[index] = record;
         cloudRecordFingerprints[collectionName].set(id, stableFingerprint(record));
         changed = true;
+        recordsChanged = true;
     });
 
     if (changed) {
@@ -550,7 +597,7 @@ function applySharedRealtimeSnapshot(collectionName, snapshot) {
             state.activeStudentId = state.students[0]?.id || null;
         }
         persistCloudFingerprints();
-        queueRealtimeUiRefresh();
+        queueRealtimeUiRefresh({ settingsChanged, recordsChanged });
     }
 }
 
@@ -753,11 +800,10 @@ function migrateLoadedState() {
     state.settings.responses = normalizeResponseSettings(state.settings.responses);
     state.settings.instructions = state.settings.instructions || {};
     state.settings.stimuli = state.settings.stimuli || deepClone(DEFAULT_STIMULI);
-    if (state.settings.realAudioCatalogVersion !== 3) {
+    if (state.settings.realAudioCatalogVersion !== 4) {
         const soundLabels = {
             dog: 'كلب',
             cat: 'قطة',
-            bird: 'عصفور',
             cow: 'بقرة',
             donkey: 'حمار',
             goat: 'ماعز'
@@ -765,13 +811,13 @@ function migrateLoadedState() {
         const replacements = {
             buzzer: 'dog',
             bell: 'cat',
-            alert: 'bird',
+            alert: 'goat',
             explosion: 'cow',
             horse: 'donkey',
             car_horn: 'dog',
             car_engine: 'dog',
             train: 'dog',
-            airplane: 'bird',
+            airplane: 'goat',
             motorcycle: 'dog'
         };
         ['auditorySimple', 'auditoryDiscriminative', 'auditoryChoice'].forEach(testType => {
@@ -787,10 +833,15 @@ function migrateLoadedState() {
         state.settings.instructions['auditory-simple'] = DEFAULT_INSTRUCTIONS['auditory-simple'];
         state.settings.instructions['auditory-discriminative'] = DEFAULT_INSTRUCTIONS['auditory-discriminative'];
         state.settings.instructions['auditory-choice'] = DEFAULT_INSTRUCTIONS['auditory-choice'];
-        state.settings.realAudioCatalogVersion = 3;
+        state.settings.realAudioCatalogVersion = 4;
     }
-    state.settings.stimuli = deepClone(DEFAULT_STIMULI);
-    state.settings.instructions = deepClone(DEFAULT_INSTRUCTIONS);
+    // Preserve saved custom settings. Defaults fill only missing test settings;
+    // earlier code reset both objects on every startup.
+    state.settings.stimuli = normalizeStimuliSettings(state.settings.stimuli);
+    state.settings.instructions = {
+        ...deepClone(DEFAULT_INSTRUCTIONS),
+        ...(state.settings.instructions || {})
+    };
     ['visualChoice', 'auditoryChoice'].forEach(testType => {
         const config = state.settings.stimuli[testType] || deepClone(DEFAULT_STIMULI[testType]);
         config.distractors = [];
@@ -834,10 +885,11 @@ let clinicalSaveTimer = null;
 // Initializer Function
 document.addEventListener("DOMContentLoaded", () => {
     if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
-        navigator.serviceWorker.register('./sw.js').catch(error => {
+        navigator.serviceWorker.register(`./sw.js?v=${APP_CACHE_VERSION}`).catch(error => {
             console.warn('Offline application cache could not be initialized:', error);
         });
     }
+    populateCategorySelectors();
     loadData();
     initRouter();
     initGeneralEventListeners();
@@ -1174,6 +1226,8 @@ function switchView(viewId) {
         renderDashboardCharts();
     } else if (viewId === 'results-view') {
         populateSessionsList();
+    } else if (viewId === 'settings-view') {
+        initSettingsForms();
     }
 }
 
@@ -1333,12 +1387,13 @@ function initGeneralEventListeners() {
         if (age !== null && (age < 1 || age > 120)) { alert('العمر يجب أن يكون بين سنة و120 سنة.'); return; }
         if (iq !== null && (iq < 30 || iq > 160)) { alert('نسبة الذكاء يجب أن تكون بين 30 و160.'); return; }
 
-        const normalizedName = enteredName.replace(/\s+/g, ' ').trim().toLocaleLowerCase('ar');
+        const normalizedName = normalizeIdentityText(enteredName);
+        const normalizedCategory = canonicalStudentCategory(category);
         let existingStudent = state.students.find(student =>
-            String(student.name || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ar') === normalizedName
+            normalizeIdentityText(student.name) === normalizedName
             && Number(student.age) === Number(age)
-            && String(student.gender || '') === String(gender || '')
-            && String(student.category || '').trim() === category
+            && normalizeIdentityText(student.gender) === normalizeIdentityText(gender)
+            && canonicalStudentCategory(student.category) === normalizedCategory
         );
         if (existingStudent) {
             existingStudent = Object.assign(existingStudent, {
@@ -1672,44 +1727,6 @@ function populateSettingsForms() {
     });
 
     syncPracticeSettingsUI();
-    renderResponseSettingsTable();
-}
-
-function renderResponseSettingsTable() {
-    const body = document.getElementById('responseSettingsTableBody');
-    if (body) body.innerHTML = '<tr><th>جميع الفئات</th><td>أقل من ٢٠٠</td><td>٢٠٠</td><td>٤٠٠٠</td><td>تنتهي المهلة عند ٤٠٠٠ مللي ثانية؛ عدم الضغط استجابة فائتة.</td></tr>';
-}
-
-function responseRangeInputs(category, kind, range) {
-    return ['from', 'to'].map(boundary => `
-        <td><input type="number" min="0" step="1" inputmode="numeric"
-            data-response-category="${escapeHtml(category)}"
-            data-response-kind="${kind}"
-            data-response-boundary="${boundary}"
-            value="${range[boundary]}"
-            aria-label="${boundary === 'from' ? 'من' : 'إلى'} ${escapeHtml(category)}"></td>
-    `).join('');
-}
-
-function readResponseSettingsTable() {
-    const settings = deepClone(DEFAULT_RESPONSE_SETTINGS);
-    document.querySelectorAll('#responseSettingsTableBody tr[data-category]').forEach(row => {
-        const category = row.dataset.category;
-        ['correct', 'late', 'missed'].forEach(kind => {
-            ['from', 'to'].forEach(boundary => {
-                const input = row.querySelector(`[data-response-kind="${kind}"][data-response-boundary="${boundary}"]`);
-                settings[category][kind][boundary] = Number(input?.value);
-            });
-        });
-    });
-    return settings;
-}
-
-function showResponseSettingsError(message = '') {
-    const errorBox = document.getElementById('responseSettingsError');
-    if (!errorBox) return;
-    errorBox.textContent = message;
-    errorBox.hidden = !message;
 }
 
 function syncPracticeSettingsUI() {
@@ -1803,34 +1820,6 @@ function initSettingsForms() {
         populateSettingsForms();
         saveData();
         alert('تمت استعادة تعليمات الاختبارات الافتراضية.');
-    });
-
-    document.getElementById('saveResponseSettingsBtn')?.addEventListener('click', () => {
-        const nextSettings = readResponseSettingsTable();
-        for (const [category, limits] of Object.entries(nextSettings)) {
-            const error = validateResponseLimits(limits, category);
-            if (error) {
-                showResponseSettingsError(error);
-                document.querySelector(`#responseSettingsTableBody tr[data-category="${CSS.escape(category)}"] input`)?.focus();
-                return;
-            }
-        }
-        state.settings.responses = normalizeResponseSettings(nextSettings);
-        touchSettings();
-        saveData();
-        renderResponseSettingsTable();
-        showResponseSettingsError('');
-        alert('تم حفظ إعدادات الاستجابة بنجاح.');
-    });
-
-    document.getElementById('resetResponseSettingsBtn')?.addEventListener('click', () => {
-        if (!confirm('هل تريد استعادة الحدود الزمنية الافتراضية لجميع الفئات؟')) return;
-        state.settings.responses = deepClone(DEFAULT_RESPONSE_SETTINGS);
-        touchSettings();
-        saveData();
-        renderResponseSettingsTable();
-        showResponseSettingsError('');
-        alert('تمت استعادة إعدادات الاستجابة الافتراضية.');
     });
 
     // Save Stimuli Settings
@@ -1964,6 +1953,20 @@ const DEFAULT_STIMULI = {
         distractors: []
     }
 };
+
+function normalizeStimuliSettings(savedStimuli) {
+    const normalized = deepClone(DEFAULT_STIMULI);
+
+    Object.keys(DEFAULT_STIMULI).forEach(testType => {
+        const saved = savedStimuli?.[testType];
+        if (!saved || typeof saved !== 'object') return;
+
+        if (Array.isArray(saved.targets)) normalized[testType].targets = deepClone(saved.targets);
+        if (Array.isArray(saved.distractors)) normalized[testType].distractors = deepClone(saved.distractors);
+    });
+
+    return normalized;
+}
 
 function renderSettingsStimuli() {
     const testType = document.getElementById("cfgStimuliTestType").value;
@@ -2180,7 +2183,7 @@ function createStimulusEditCard(stim, category, idx, isVisual, isChoice, testTyp
     labelInput.value = stim.label || "";
     labelInput.style.padding = "6px 10px";
     labelInput.style.fontSize = "12px";
-    labelInput.placeholder = "مثال: دائرة خضراء، صوت عصفور...";
+    labelInput.placeholder = "مثال: دائرة خضراء، صوت كلب...";
     labelInput.addEventListener("input", () => {
         stim.label = labelInput.value.trim();
         renderSettingsStimuliMappingOnly();
@@ -3187,15 +3190,24 @@ function loadSessionReport(session) {
     if (elInputMethod) elInputMethod.innerText = translateInputMethod(session.inputMethod);
 
     // Specialist info in print header
-    const spec = session.specialist || state.sessionSpecialist;
+    const spec = session.specialist || null;
     const elSpecialist = document.getElementById("lblPrintSpecialist");
     const elCenter     = document.getElementById("lblPrintCenter");
+    const elReportSpecialist = document.getElementById("lblReportSpecialistName");
+    const elReportSpecialistTitle = document.getElementById("lblReportSpecialistTitle");
+    const elReportSpecialistCenter = document.getElementById("lblReportSpecialistCenter");
     if (spec) {
         if (elSpecialist) elSpecialist.innerText = `المختص: ${spec.name || ''}${spec.title ? ' - ' + spec.title : ''}`;
         if (elCenter)     elCenter.innerText     = `المؤسسة: ${spec.center || ''}`;
+        if (elReportSpecialist) elReportSpecialist.innerText = spec.name || '--';
+        if (elReportSpecialistTitle) elReportSpecialistTitle.innerText = spec.title || '--';
+        if (elReportSpecialistCenter) elReportSpecialistCenter.innerText = spec.center || '--';
     } else {
         if (elSpecialist) elSpecialist.innerText = 'المختص: --';
         if (elCenter)     elCenter.innerText     = 'المؤسسة: --';
+        if (elReportSpecialist) elReportSpecialist.innerText = '--';
+        if (elReportSpecialistTitle) elReportSpecialistTitle.innerText = '--';
+        if (elReportSpecialistCenter) elReportSpecialistCenter.innerText = '--';
     }
 
     // Metrics bindings (with null checks)
@@ -3510,7 +3522,7 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
         "المحاولات الرسمية", "المحاولات التدريبية غير المحتسبة", "الصحيح الكلي", "الاستجابات الصحيحة بضغطة",
         "التجاهل الصحيح", "الاختيار الخاطئ", "الاستجابات الفائتة", "الضغط الخاطئ على المشتت", "الاستجابة المبكرة", "الاستجابة المتأخرة المستبعدة",
         "الدقة %", "نسبة الخطأ %", "متوسط زمن الاستجابة (مللي ثانية)", "وسيط زمن الاستجابة (مللي ثانية)", "الانحراف المعياري (مللي ثانية)", "أسرع استجابة (مللي ثانية)", "أبطأ استجابة (مللي ثانية)",
-        "اسم المختص", "المؤسسة", "مدة الجلسة", "طريقة الاستجابة", "الجهاز", "أبعاد الشاشة"
+        "اسم المختص", "الصفة الوظيفية", "المؤسسة", "مدة الجلسة", "طريقة الاستجابة", "الجهاز", "أبعاد الشاشة"
     ]];
     normalizedSessions.forEach(session => summaryRows.push([
         session.id,
@@ -3536,6 +3548,7 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
         milliseconds(session.fastestTime || 0),
         milliseconds(session.slowestTime || 0),
         session.specialist?.name || '',
+        session.specialist?.title || '',
         session.specialist?.center || '',
         session.duration || '',
         session.inputMethod || '',
@@ -3545,11 +3558,11 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
 
     const formalRows = [[
         "رقم الجلسة", "اسم الطالب", "نوع الاختبار", "رقم المحاولة الرسمية", "المثير",
-        "الاستجابة المطلوبة", "الاستجابة الفعلية", "النتيجة", "زمن الاستجابة (مللي ثانية)", "حالة الاحتساب", "طريقة الاستجابة", "وقت المحاولة"
+        "الاستجابة المطلوبة", "الاستجابة الفعلية", "النتيجة", "زمن الاستجابة (مللي ثانية)", "حالة الاحتساب", "طريقة الاستجابة", "وقت المحاولة", "اسم المختص", "الصفة الوظيفية", "المؤسسة"
     ]];
     const practiceRows = [[
         "رقم الجلسة", "اسم الطالب", "نوع الاختبار", "رقم المحاولة التدريبية", "المثير",
-        "الاستجابة المطلوبة", "الاستجابة الفعلية", "النتيجة", "زمن الاستجابة (مللي ثانية)", "طريقة الاستجابة", "وقت المحاولة", "حالة الاحتساب"
+        "الاستجابة المطلوبة", "الاستجابة الفعلية", "النتيجة", "زمن الاستجابة (مللي ثانية)", "طريقة الاستجابة", "وقت المحاولة", "حالة الاحتساب", "اسم المختص", "الصفة الوظيفية", "المؤسسة"
     ]];
     normalizedSessions.forEach(session => {
         (session.trials || []).forEach(trial => formalRows.push([
@@ -3564,7 +3577,10 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
             trial.latency === null || trial.latency === undefined ? '' : Math.round(Number(trial.latency) * 1000),
             getTrialCalculationStatus(trial, session),
             trial.inputMethod || session.inputMethod || '',
-            trial.timestamp ? new Date(trial.timestamp) : ''
+            trial.timestamp ? new Date(trial.timestamp) : '',
+            session.specialist?.name || '',
+            session.specialist?.title || '',
+            session.specialist?.center || ''
         ]));
         (session.practiceTrials || []).forEach(trial => practiceRows.push([
             session.id,
@@ -3578,7 +3594,10 @@ function exportSessionsToExcel(sessions, fileBaseName, studentsOverride = null) 
             trial.latency === null || trial.latency === undefined ? '' : Math.round(Number(trial.latency) * 1000),
             trial.inputMethod || session.inputMethod || '',
             trial.timestamp ? new Date(trial.timestamp) : '',
-            'تدريب غير محتسب'
+            'تدريب غير محتسب',
+            session.specialist?.name || '',
+            session.specialist?.title || '',
+            session.specialist?.center || ''
         ]));
     });
 
@@ -3819,7 +3838,7 @@ function buildGroupTrialsTotalsRows(sessions, testFilter = '', alreadyNormalized
 
 function buildGroupTrialDetailsRows(sessions, limit = Infinity, alreadyNormalized = false) {
     const rows = [[
-        'اسم الطالب', 'الفئة', 'القسم', 'نوع الاختبار', 'رقم المحاولة',
+        'اسم الطالب', 'الفئة', 'المختص المنفذ', 'الصفة الوظيفية', 'المؤسسة', 'القسم', 'نوع الاختبار', 'رقم المحاولة',
         'المثير', 'النتيجة', 'زمن الاستجابة (مللي ثانية)', 'حالة الاحتساب'
     ]];
     const normalized = alreadyNormalized ? sessions : sessions.map(normalizeSession);
@@ -3829,6 +3848,9 @@ function buildGroupTrialDetailsRows(sessions, limit = Infinity, alreadyNormalize
             rows.push([
             session.studentName || 'حالة غير مسماة',
             session.studentCategory || 'غير محدد',
+            session.specialist?.name || '',
+            session.specialist?.title || '',
+            session.specialist?.center || '',
             session.testType?.startsWith('visual') ? 'بصري' : 'سمعي',
             getTestArabicName(session.testType),
             trial.index,
@@ -4059,10 +4081,14 @@ function scheduleGroupReportRender({ immediate = false } = {}) {
         loadGroupReport();
         return;
     }
-    groupReportRenderTimer = setTimeout(loadGroupReport, 120);
+    // Firebase may deliver many documents together.  Render once after the
+    // burst instead of reconstructing all report charts for every document.
+    groupReportRenderTimer = setTimeout(loadGroupReport, 800);
 }
 
 function loadGroupReport() {
+    if (!document.getElementById('results-view')?.classList.contains('active-screen')
+        || !document.getElementById('btnGroupTab')?.classList.contains('active')) return;
     const categorySelect = document.getElementById('cfgGroupCategory');
     if (categorySelect) {
         const known = new Set(Array.from(categorySelect.options, option => option.value));
@@ -4077,8 +4103,10 @@ function loadGroupReport() {
         });
     }
 
+    const testFilter = document.getElementById('cfgGroupTestType')?.value || '';
     const sessions = getFilteredGroupSessions();
-    const overall = summarizeSessions(sessions, true);
+    const reportEntries = buildGroupReportEntries(sessions, testFilter, true);
+    const overall = reportEntries[0]?.summary || summarizeSessions(sessions, true);
     document.querySelectorAll('.lblGroupPrintDate').forEach(element => {
         element.innerText = new Date().toLocaleDateString('ar-EG');
     });
@@ -4104,8 +4132,7 @@ function loadGroupReport() {
     setText('lblGroupWrongResponses', overall.wrongResponses);
     setText('lblGroupLateResponses', overall.lateResponses);
 
-    const testFilter = document.getElementById('cfgGroupTestType')?.value || '';
-    const rows = buildGroupReportEntries(sessions, testFilter, true).filter(row => row.classification !== 'الإجمالي');
+    const rows = reportEntries.slice(1);
 
     const tbody = document.getElementById('groupSummaryTableBody');
     if (tbody) {
@@ -4156,24 +4183,22 @@ function loadGroupReport() {
         }
     };
     if (typeof Chart !== 'undefined') {
-        if (grpAvgRTChartInstance) grpAvgRTChartInstance.destroy();
-        if (grpFastestRTChartInstance) grpFastestRTChartInstance.destroy();
-        if (grpSlowestRTChartInstance) grpSlowestRTChartInstance.destroy();
-        grpAvgRTChartInstance = new Chart(document.getElementById('grpAvgRTChart'), {
-            type: 'bar',
-            data: { labels, datasets: [{ data: subtestRows.map(row => milliseconds(row.summary.mean)), backgroundColor: '#6c5ce7', borderRadius: 4 }] },
-            options: chartOptions
-        });
-        grpFastestRTChartInstance = new Chart(document.getElementById('grpFastestRTChart'), {
-            type: 'bar',
-            data: { labels, datasets: [{ data: subtestRows.map(row => milliseconds(row.summary.fastest)), backgroundColor: '#2ed573', borderRadius: 4 }] },
-            options: chartOptions
-        });
-        grpSlowestRTChartInstance = new Chart(document.getElementById('grpSlowestRTChart'), {
-            type: 'bar',
-            data: { labels, datasets: [{ data: subtestRows.map(row => milliseconds(row.summary.slowest)), backgroundColor: '#ff4757', borderRadius: 4 }] },
-            options: chartOptions
-        });
+        const updateGroupChart = (chart, canvasId, data, color) => {
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = data;
+                chart.update('none');
+                return chart;
+            }
+            return new Chart(document.getElementById(canvasId), {
+                type: 'bar',
+                data: { labels, datasets: [{ data, backgroundColor: color, borderRadius: 4 }] },
+                options: chartOptions
+            });
+        };
+        grpAvgRTChartInstance = updateGroupChart(grpAvgRTChartInstance, 'grpAvgRTChart', subtestRows.map(row => milliseconds(row.summary.mean)), '#6c5ce7');
+        grpFastestRTChartInstance = updateGroupChart(grpFastestRTChartInstance, 'grpFastestRTChart', subtestRows.map(row => milliseconds(row.summary.fastest)), '#2ed573');
+        grpSlowestRTChartInstance = updateGroupChart(grpSlowestRTChartInstance, 'grpSlowestRTChart', subtestRows.map(row => milliseconds(row.summary.slowest)), '#ff4757');
     }
 }
 
@@ -4190,7 +4215,7 @@ class TestEngine {
         this.stimuliSnapshot = deepClone(this.getLiveStimuliConfig());
         this.instructionSnapshot = state.settings.instructions[this.testType] || '';
         this.student = state.students.find(student => student.id === state.activeStudentId) || state.sessionStudent;
-        this.responseCategory = canonicalResponseCategory(this.student?.category);
+        this.responseCategory = canonicalStudentCategory(this.student?.category);
         this.responseLimits = getResponseLimits(this.responseCategory);
         this.responseTimeoutMs = this.responseLimits.correct.to;
         this.formalTrialsList = this.buildTrialSequence(this.config.trialsCount);

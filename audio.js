@@ -5,7 +5,6 @@
 const REAL_SOUND_FILES = Object.freeze({
     dog: 'assets/audio/dog.wav',
     cat: 'assets/audio/cat.wav',
-    bird: 'assets/audio/bird.wav',
     cow: 'assets/audio/cow.wav',
     donkey: 'assets/audio/donkey.wav',
     goat: 'assets/audio/goat.wav'
