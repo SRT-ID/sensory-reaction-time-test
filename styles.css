@@ -69,13 +69,6 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Date controls always use western numerals and the YYYY/MM/DD order. */
-input[type="date"] {
-    direction: ltr;
-    text-align: left;
-    font-family: Arial, sans-serif;
-}
-
 /* App Container Layout */
 .app-container {
     display: grid;
