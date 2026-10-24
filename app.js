@@ -36,7 +36,7 @@ let cloudPushPromise = null;
 let deferredRemoteSync = false;
 let groupReportRenderTimer = null;
 let realtimeUiRefreshTimer = null;
-const APP_CACHE_VERSION = '20261024-8';
+const APP_CACHE_VERSION = '20261024-10';
 let pendingRealtimeUiRefresh = { settingsChanged: false, recordsChanged: false };
 
 // Keep a lightweight local record of what has already been confirmed in the
@@ -265,6 +265,126 @@ function canonicalStudentCategory(category) {
     const normalized = String(category || '').trim();
     return LEGACY_CATEGORY_ALIASES[normalized]
         || normalized || 'غير محدد';
+}
+
+// --------------------------------------------------------------------------
+// Student picker used before starting a test session
+// --------------------------------------------------------------------------
+// A test session never owns the student's master record.  The picker selects
+// that record once, then every newly completed test receives its own session
+// document linked through studentId.  This keeps concurrent specialists from
+// overwriting one another's results or requiring repeated data entry.
+const TEST_STUDENT_FORM_FIELDS = [
+    'tsStudentName',
+    'tsStudentAge',
+    'tsStudentGender',
+    'tsStudentIQ',
+    'tsStudentCategory',
+    'tsStudentOtherCategory'
+];
+
+function getTestStudentPickerLabel(student) {
+    const code = student?.code || 'بدون كود';
+    const name = student?.name || 'حالة غير مسماة';
+    const details = [student?.age ? `${student.age} سنوات` : '', student?.gender || ''].filter(Boolean).join(' • ');
+    return details ? `${code} — ${name} (${details})` : `${code} — ${name}`;
+}
+
+function setTestStudentFormReadOnly(isReadOnly) {
+    TEST_STUDENT_FORM_FIELDS.forEach(id => {
+        const field = document.getElementById(id);
+        if (!field) return;
+        if (field.tagName === 'SELECT') field.disabled = isReadOnly;
+        else field.readOnly = isReadOnly;
+    });
+}
+
+function populateTestStudentPicker(preferredStudentId = null) {
+    const select = document.getElementById('tsExistingStudentSelect');
+    const search = document.getElementById('tsStudentSearch');
+    if (!select) return;
+
+    const selectedStudentId = preferredStudentId ?? select.value;
+    const term = normalizeIdentityText(search?.value);
+    const students = [...state.students]
+        .filter(student => {
+            if (!term) return true;
+            return normalizeIdentityText(student.code).includes(term)
+                || normalizeIdentityText(student.name).includes(term);
+        })
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+
+    select.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = students.length
+        ? '-- اختر طالبًا لبدء جلسة جديدة --'
+        : (term ? '-- لا توجد نتائج مطابقة --' : '-- لا يوجد طلاب مسجلون بعد --');
+    select.appendChild(placeholder);
+    students.forEach(student => {
+        const option = document.createElement('option');
+        option.value = student.id;
+        option.textContent = getTestStudentPickerLabel(student);
+        select.appendChild(option);
+    });
+
+    if (selectedStudentId && students.some(student => student.id === selectedStudentId)) {
+        select.value = selectedStudentId;
+    }
+}
+
+function fillTestStudentForm(student) {
+    if (!student) return;
+    document.getElementById('tsStudentName').value = student.name || '';
+    document.getElementById('tsStudentAge').value = student.age ?? '';
+    document.getElementById('tsStudentGender').value = student.gender || '';
+    document.getElementById('tsStudentIQ').value = student.iq ?? '';
+
+    const categorySelect = document.getElementById('tsStudentCategory');
+    const otherCategory = document.getElementById('tsStudentOtherCategory');
+    const category = student.category || '';
+    const isCustomCategory = Boolean(category) && !STUDENT_CATEGORIES.includes(category);
+    if (categorySelect) categorySelect.value = isCustomCategory ? 'أخرى' : category;
+    if (otherCategory) {
+        otherCategory.value = isCustomCategory ? category : '';
+        otherCategory.hidden = !isCustomCategory;
+        otherCategory.required = false;
+    }
+    setTestStudentFormReadOnly(true);
+}
+
+function prepareNewTestStudent() {
+    const select = document.getElementById('tsExistingStudentSelect');
+    const search = document.getElementById('tsStudentSearch');
+    if (select) select.value = '';
+    if (search) search.value = '';
+    setTestStudentFormReadOnly(false);
+
+    document.getElementById('tsStudentName').value = '';
+    document.getElementById('tsStudentAge').value = '';
+    document.getElementById('tsStudentGender').value = '';
+    document.getElementById('tsStudentIQ').value = '';
+    document.getElementById('tsStudentCategory').value = '';
+    const otherCategory = document.getElementById('tsStudentOtherCategory');
+    if (otherCategory) {
+        otherCategory.value = '';
+        otherCategory.hidden = true;
+        otherCategory.required = false;
+    }
+    populateTestStudentPicker();
+    document.getElementById('tsStudentName')?.focus();
+}
+
+function selectExistingTestStudent(studentId) {
+    const student = state.students.find(item => item.id === studentId);
+    if (!student) {
+        setTestStudentFormReadOnly(false);
+        return;
+    }
+    state.activeStudentId = student.id;
+    fillTestStudentForm(student);
+    const help = document.getElementById('tsExistingStudentHelp');
+    if (help) help.textContent = `تم اختيار ${student.name || 'الطالب'} (${student.code || 'بدون كود'}). ستُحفظ الجلسة الجديدة داخل سجله.`;
 }
 
 function populateCategorySelectors() {
@@ -1250,6 +1370,10 @@ function switchView(viewId) {
 // General UI Update
 function updateUI() {
 
+    // Keep the session-start picker current when students arrive from another
+    // device, without touching the active test engine or its timers.
+    populateTestStudentPicker();
+
     // Render Latest Results Table on Dashboard
     const latestResultsBody = document.getElementById("dashboardLatestResultsBody");
     if (latestResultsBody) {
@@ -1380,8 +1504,29 @@ function initGeneralEventListeners() {
         if (!other.hidden) other.focus();
     });
 
+    document.getElementById('tsStudentSearch')?.addEventListener('input', () => {
+        populateTestStudentPicker();
+    });
+
+    document.getElementById('tsExistingStudentSelect')?.addEventListener('change', event => {
+        if (event.target.value) {
+            selectExistingTestStudent(event.target.value);
+            return;
+        }
+        setTestStudentFormReadOnly(false);
+        const help = document.getElementById('tsExistingStudentHelp');
+        if (help) help.textContent = 'اختر طالبًا مسجلًا، أو أضف بيانات طالب جديد مرة واحدة فقط.';
+    });
+
+    document.getElementById('newTestStudentBtn')?.addEventListener('click', () => {
+        prepareNewTestStudent();
+        const help = document.getElementById('tsExistingStudentHelp');
+        if (help) help.textContent = 'أدخل بيانات الطالب الجديد. بعد حفظ أول جلسة سيُنشأ له كود ثابت تلقائيًا.';
+    });
+
     // Start session button
     document.getElementById("startTestsSessionBtn")?.addEventListener("click", () => {
+        const selectedStudentId = document.getElementById('tsExistingStudentSelect')?.value || '';
         const enteredName = document.getElementById("tsStudentName")?.value.trim() || '';
         const age = safeNumber(document.getElementById("tsStudentAge")?.value, null);
         const gender = document.getElementById("tsStudentGender")?.value;
@@ -1396,44 +1541,53 @@ function initGeneralEventListeners() {
 
         const selectedTests = Array.from(document.querySelectorAll(".test-checkbox:checked")).map(cb => cb.value);
         if (selectedTests.length === 0) { alert("يرجى تحديد اختبار واحد على الأقل."); return; }
-        if (!enteredName) { alert('يرجى إدخال اسم الطالب.'); document.getElementById('tsStudentName')?.focus(); return; }
-        if (age === null) { alert('يرجى إدخال عمر الطالب.'); document.getElementById('tsStudentAge')?.focus(); return; }
-        if (!gender) { alert('يرجى اختيار جنس الطالب.'); document.getElementById('tsStudentGender')?.focus(); return; }
-        if (!category) { alert('يرجى اختيار فئة الطالب.'); document.getElementById('tsStudentCategory')?.focus(); return; }
-        if (age !== null && (age < 1 || age > 120)) { alert('العمر يجب أن يكون بين سنة و120 سنة.'); return; }
-        if (iq !== null && (iq < 30 || iq > 160)) { alert('نسبة الذكاء يجب أن تكون بين 30 و160.'); return; }
+        let existingStudent = selectedStudentId
+            ? state.students.find(student => student.id === selectedStudentId)
+            : null;
 
-        const normalizedName = normalizeIdentityText(enteredName);
-        const normalizedCategory = canonicalStudentCategory(category);
-        let existingStudent = state.students.find(student =>
-            normalizeIdentityText(student.name) === normalizedName
-            && Number(student.age) === Number(age)
-            && normalizeIdentityText(student.gender) === normalizeIdentityText(gender)
-            && canonicalStudentCategory(student.category) === normalizedCategory
-        );
-        if (existingStudent) {
-            existingStudent = Object.assign(existingStudent, {
-                name: enteredName,
-                age,
-                gender,
-                iq,
-                category,
-                updatedAt: new Date().toISOString()
-            });
-        } else {
-            const id = makeEntityId('student');
-            existingStudent = {
-                id,
-                code: makeStudentCode(id),
-                name: enteredName,
-                age,
-                gender,
-                iq,
-                category,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            state.students.push(existingStudent);
+        if (selectedStudentId && !existingStudent) {
+            alert('لم يعد سجل الطالب المختار متاحًا. اختر الطالب مرة أخرى أو أضفه من جديد.');
+            populateTestStudentPicker();
+            return;
+        }
+
+        // New students are checked against the existing master list before a
+        // record is created.  Existing students are never overwritten here;
+        // this action only starts a new independent test session for them.
+        if (!existingStudent) {
+            if (!enteredName) { alert('يرجى إدخال اسم الطالب.'); document.getElementById('tsStudentName')?.focus(); return; }
+            if (age === null) { alert('يرجى إدخال عمر الطالب.'); document.getElementById('tsStudentAge')?.focus(); return; }
+            if (!gender) { alert('يرجى اختيار جنس الطالب.'); document.getElementById('tsStudentGender')?.focus(); return; }
+            if (!category) { alert('يرجى اختيار فئة الطالب.'); document.getElementById('tsStudentCategory')?.focus(); return; }
+            if (age < 1 || age > 120) { alert('العمر يجب أن يكون بين سنة و120 سنة.'); return; }
+            if (iq !== null && (iq < 30 || iq > 160)) { alert('نسبة الذكاء يجب أن تكون بين 30 و160.'); return; }
+
+            const normalizedName = normalizeIdentityText(enteredName);
+            const normalizedCategory = canonicalStudentCategory(category);
+            existingStudent = state.students.find(student =>
+                normalizeIdentityText(student.name) === normalizedName
+                && Number(student.age) === Number(age)
+                && normalizeIdentityText(student.gender) === normalizeIdentityText(gender)
+                && canonicalStudentCategory(student.category) === normalizedCategory
+            );
+            if (existingStudent) {
+                const shouldUseExisting = confirm(`يوجد طالب مسجل بنفس البيانات: ${getTestStudentPickerLabel(existingStudent)}. هل تريد بدء جلسة جديدة له؟`);
+                if (!shouldUseExisting) return;
+            } else {
+                const id = makeEntityId('student');
+                existingStudent = {
+                    id,
+                    code: makeStudentCode(id),
+                    name: enteredName,
+                    age,
+                    gender,
+                    iq,
+                    category,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                state.students.push(existingStudent);
+            }
         }
         
         state.activeStudentId = existingStudent.id;
@@ -2023,7 +2177,6 @@ function renderSettingsStimuli() {
 
     // 3. Render Mapping Table
     renderSettingsStimuliMappingOnly();
-    document.querySelectorAll('#stimuli-settings input, #stimuli-settings button, #stimuli-settings select:not(#cfgStimuliTestType)').forEach(el => { el.disabled = true; });
     const instruction = document.getElementById('fixedStimulusInstruction');
     if (instruction) instruction.innerHTML = sanitizeInstructionHtml(DEFAULT_INSTRUCTIONS[testType.replace(/([A-Z])/g, '-$1').toLowerCase()]);
 }

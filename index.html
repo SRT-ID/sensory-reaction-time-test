@@ -238,7 +238,7 @@
             <section id="tests-view" class="view-screen">
                 <div class="section-header">
                     <h3>إعداد جلسة الاختبار</h3>
-                    <p>يمكن إدخال بيانات الطالب والمختص أو تخطيها، ثم تحديد الاختبارات المطلوبة وبدء الجلسة.</p>
+                    <p>اختر طالبًا مسجلًا لبدء جلسة جديدة مرتبطة به، أو أضف طالبًا جديدًا مرة واحدة فقط.</p>
                 </div>
 
                 <!-- Setup Forms Row: Student + Specialist -->
@@ -250,6 +250,17 @@
                             <h4>بيانات الطالب</h4>
                         </div>
                         <div class="styled-form">
+                            <div class="student-session-picker" id="testStudentPicker">
+                                <label for="tsExistingStudentSelect">الطالب المسجل</label>
+                                <div class="student-picker-controls">
+                                    <input id="tsStudentSearch" type="search" placeholder="ابحث بكود الطالب أو اسمه" autocomplete="off">
+                                    <button type="button" class="secondary-btn small-btn" id="newTestStudentBtn">إضافة طالب جديد</button>
+                                </div>
+                                <select id="tsExistingStudentSelect" aria-describedby="tsExistingStudentHelp">
+                                    <option value="">-- اختر طالبًا لبدء جلسة جديدة --</option>
+                                </select>
+                                <p class="help-text" id="tsExistingStudentHelp">عند اختيار طالب، تُربط الجلسة الجديدة بسجله دون إعادة إدخال بياناته.</p>
+                            </div>
                             <div class="form-group">
                                 <label for="tsStudentName">اسم الطالب رباعي <span class="required-label">(إجباري)</span></label>
                                 <input type="text" id="tsStudentName" placeholder="مثال: أحمد علي حسن محمد" required>
@@ -475,7 +486,7 @@
                     </div>
 
                     <!-- Tab Content 2: Stimuli Settings -->
-                    <div class="settings-tab-content" id="stimuli-settings"><p>مثيرات وتعليمات افتراضية ثابتة.</p><div id="fixedStimulusInstruction"></div>
+                    <div class="settings-tab-content" id="stimuli-settings"><p>اختر نوع الاختبار ثم عدّل المثيرات واحفظ التغييرات.</p><div id="fixedStimulusInstruction"></div>
                         <div class="form-group" style="max-width: 350px; margin-bottom: 20px;">
                             <label for="cfgStimuliTestType">اختر نوع الاختبار للتعديل:</label>
                             <select id="cfgStimuliTestType" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: 'Cairo'; width: 100%;">
@@ -1149,7 +1160,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
-    <script src="audio.js?v=20261024-8"></script>
-    <script src="app.js?v=20261024-8"></script>
+    <script src="audio.js?v=20261024-10"></script>
+    <script src="app.js?v=20261024-10"></script>
 </body>
 </html>
