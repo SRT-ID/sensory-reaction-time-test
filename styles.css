@@ -710,53 +710,6 @@ body {
     gap: 20px;
 }
 
-.student-session-picker {
-    padding: 14px;
-    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--border-color));
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-primary) 6%, var(--bg-card));
-}
-
-.student-session-picker > label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--text-main);
-}
-
-.student-picker-controls {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.student-session-picker input,
-.student-session-picker select {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    background: var(--bg-input);
-    color: var(--text-main);
-    font: inherit;
-}
-
-.student-session-picker select {
-    min-height: 42px;
-}
-
-.student-session-picker .help-text {
-    margin: 8px 0 0;
-}
-
-@media (max-width: 480px) {
-    .student-picker-controls {
-        grid-template-columns: 1fr;
-    }
-}
-
 .form-group {
     display: flex;
     flex-direction: column;
@@ -2836,6 +2789,27 @@ body {
     border-radius: 20px;
     font-size: 12px;
     font-weight: 700;
+}
+
+.student-lookup-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.student-lookup-row input {
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .student-lookup-row {
+        flex-wrap: wrap;
+    }
+
+    .student-lookup-row input {
+        flex-basis: 100%;
+    }
 }
 
 /* ---- Active Play Screen Fullscreen overrides (Requirement 4) ---- */

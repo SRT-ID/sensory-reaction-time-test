@@ -54,7 +54,6 @@ const pendingCloudChanges = {
 };
 const MAX_GROUP_DETAIL_ROWS = 500;
 const MAX_DASHBOARD_CHART_POINTS = 200;
-const DELETE_CONFIRMATION_CODE = '2026';
 
 if (firebaseConfig.apiKey && typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') {
     try {
@@ -265,126 +264,6 @@ function canonicalStudentCategory(category) {
     const normalized = String(category || '').trim();
     return LEGACY_CATEGORY_ALIASES[normalized]
         || normalized || 'غير محدد';
-}
-
-// --------------------------------------------------------------------------
-// Student picker used before starting a test session
-// --------------------------------------------------------------------------
-// A test session never owns the student's master record.  The picker selects
-// that record once, then every newly completed test receives its own session
-// document linked through studentId.  This keeps concurrent specialists from
-// overwriting one another's results or requiring repeated data entry.
-const TEST_STUDENT_FORM_FIELDS = [
-    'tsStudentName',
-    'tsStudentAge',
-    'tsStudentGender',
-    'tsStudentIQ',
-    'tsStudentCategory',
-    'tsStudentOtherCategory'
-];
-
-function getTestStudentPickerLabel(student) {
-    const code = student?.code || 'بدون كود';
-    const name = student?.name || 'حالة غير مسماة';
-    const details = [student?.age ? `${student.age} سنوات` : '', student?.gender || ''].filter(Boolean).join(' • ');
-    return details ? `${code} — ${name} (${details})` : `${code} — ${name}`;
-}
-
-function setTestStudentFormReadOnly(isReadOnly) {
-    TEST_STUDENT_FORM_FIELDS.forEach(id => {
-        const field = document.getElementById(id);
-        if (!field) return;
-        if (field.tagName === 'SELECT') field.disabled = isReadOnly;
-        else field.readOnly = isReadOnly;
-    });
-}
-
-function populateTestStudentPicker(preferredStudentId = null) {
-    const select = document.getElementById('tsExistingStudentSelect');
-    const search = document.getElementById('tsStudentSearch');
-    if (!select) return;
-
-    const selectedStudentId = preferredStudentId ?? select.value;
-    const term = normalizeIdentityText(search?.value);
-    const students = [...state.students]
-        .filter(student => {
-            if (!term) return true;
-            return normalizeIdentityText(student.code).includes(term)
-                || normalizeIdentityText(student.name).includes(term);
-        })
-        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
-
-    select.replaceChildren();
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = students.length
-        ? '-- اختر طالبًا لبدء جلسة جديدة --'
-        : (term ? '-- لا توجد نتائج مطابقة --' : '-- لا يوجد طلاب مسجلون بعد --');
-    select.appendChild(placeholder);
-    students.forEach(student => {
-        const option = document.createElement('option');
-        option.value = student.id;
-        option.textContent = getTestStudentPickerLabel(student);
-        select.appendChild(option);
-    });
-
-    if (selectedStudentId && students.some(student => student.id === selectedStudentId)) {
-        select.value = selectedStudentId;
-    }
-}
-
-function fillTestStudentForm(student) {
-    if (!student) return;
-    document.getElementById('tsStudentName').value = student.name || '';
-    document.getElementById('tsStudentAge').value = student.age ?? '';
-    document.getElementById('tsStudentGender').value = student.gender || '';
-    document.getElementById('tsStudentIQ').value = student.iq ?? '';
-
-    const categorySelect = document.getElementById('tsStudentCategory');
-    const otherCategory = document.getElementById('tsStudentOtherCategory');
-    const category = student.category || '';
-    const isCustomCategory = Boolean(category) && !STUDENT_CATEGORIES.includes(category);
-    if (categorySelect) categorySelect.value = isCustomCategory ? 'أخرى' : category;
-    if (otherCategory) {
-        otherCategory.value = isCustomCategory ? category : '';
-        otherCategory.hidden = !isCustomCategory;
-        otherCategory.required = false;
-    }
-    setTestStudentFormReadOnly(true);
-}
-
-function prepareNewTestStudent() {
-    const select = document.getElementById('tsExistingStudentSelect');
-    const search = document.getElementById('tsStudentSearch');
-    if (select) select.value = '';
-    if (search) search.value = '';
-    setTestStudentFormReadOnly(false);
-
-    document.getElementById('tsStudentName').value = '';
-    document.getElementById('tsStudentAge').value = '';
-    document.getElementById('tsStudentGender').value = '';
-    document.getElementById('tsStudentIQ').value = '';
-    document.getElementById('tsStudentCategory').value = '';
-    const otherCategory = document.getElementById('tsStudentOtherCategory');
-    if (otherCategory) {
-        otherCategory.value = '';
-        otherCategory.hidden = true;
-        otherCategory.required = false;
-    }
-    populateTestStudentPicker();
-    document.getElementById('tsStudentName')?.focus();
-}
-
-function selectExistingTestStudent(studentId) {
-    const student = state.students.find(item => item.id === studentId);
-    if (!student) {
-        setTestStudentFormReadOnly(false);
-        return;
-    }
-    state.activeStudentId = student.id;
-    fillTestStudentForm(student);
-    const help = document.getElementById('tsExistingStudentHelp');
-    if (help) help.textContent = `تم اختيار ${student.name || 'الطالب'} (${student.code || 'بدون كود'}). ستُحفظ الجلسة الجديدة داخل سجله.`;
 }
 
 function populateCategorySelectors() {
@@ -1179,6 +1058,7 @@ async function syncFromFirestore(writeBack = false) {
         initSettingsForms();
         updateUI();
         populateSessionsList();
+        refreshStudentLookupOptions();
         rememberCloudState({ preserveLocalChanges: true });
         startSharedRealtimeSync();
         if (writeBack) await syncAllToFirestore();
@@ -1293,21 +1173,6 @@ async function deleteRemoteRecord(collectionName, id) {
     }
 }
 
-function confirmProtectedDeletion(itemDescription) {
-    const confirmed = window.confirm(`هل أنت متأكد من حذف ${itemDescription} نهائيًا؟`);
-    if (!confirmed) return false;
-
-    const enteredCode = window.prompt(`للتأكيد، اكتب كود الحذف (${DELETE_CONFIRMATION_CODE}) ثم اضغط موافق.`);
-    if (enteredCode === null) return false;
-
-    if (enteredCode.trim() !== DELETE_CONFIRMATION_CODE) {
-        alert('كود الحذف غير صحيح. لم يتم حذف أي بيانات.');
-        return false;
-    }
-
-    return true;
-}
-
 function deleteStudentRecord(id) {
     const relatedSessionIds = state.sessions.filter(session => session.studentId === id).map(session => session.id);
     state.students = state.students.filter(student => student.id !== id);
@@ -1370,10 +1235,6 @@ function switchView(viewId) {
 // General UI Update
 function updateUI() {
 
-    // Keep the session-start picker current when students arrive from another
-    // device, without touching the active test engine or its timers.
-    populateTestStudentPicker();
-
     // Render Latest Results Table on Dashboard
     const latestResultsBody = document.getElementById("dashboardLatestResultsBody");
     if (latestResultsBody) {
@@ -1414,6 +1275,68 @@ function getTestArabicName(type) {
         'auditory-choice': 'السمعي الاختياري'
     };
     return map[type] || type;
+}
+
+function findStudentFromLookup(value) {
+    const entered = String(value || '').trim();
+    if (!entered) return null;
+    const enteredCode = entered.split('—')[0].trim().toUpperCase();
+    const exactCode = state.students.find(student => String(student.code || '').trim().toUpperCase() === enteredCode);
+    if (exactCode) return exactCode;
+
+    const matchingNames = state.students.filter(student => normalizeIdentityText(student.name) === normalizeIdentityText(entered));
+    return matchingNames.length === 1 ? matchingNames[0] : null;
+}
+
+function refreshStudentLookupOptions() {
+    const list = document.getElementById('studentLookupOptions');
+    if (!list) return;
+    list.innerHTML = '';
+    [...state.students]
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
+        .forEach(student => {
+            const option = document.createElement('option');
+            option.value = `${student.code || makeStudentCode(student.id)} — ${student.name || 'حالة غير مسماة'}`;
+            list.appendChild(option);
+        });
+}
+
+function fillStudentSetupForm(student) {
+    if (!student) return;
+    document.getElementById('tsExistingStudentSearch').value = `${student.code || ''} — ${student.name || ''}`.trim();
+    document.getElementById('tsStudentCode').value = student.code || '';
+    document.getElementById('tsStudentName').value = student.name || '';
+    document.getElementById('tsStudentAge').value = student.age ?? '';
+    document.getElementById('tsStudentGender').value = student.gender || '';
+    document.getElementById('tsStudentIQ').value = student.iq ?? '';
+
+    const categorySelect = document.getElementById('tsStudentCategory');
+    const otherInput = document.getElementById('tsStudentOtherCategory');
+    const categoryExists = [...(categorySelect?.options || [])].some(option => option.value === student.category);
+    if (categorySelect) categorySelect.value = categoryExists ? (student.category || '') : (student.category ? 'أخرى' : '');
+    if (otherInput) {
+        otherInput.hidden = !student.category || categoryExists;
+        otherInput.required = !otherInput.hidden;
+        otherInput.value = categoryExists ? '' : (student.category || '');
+    }
+    state.activeStudentId = student.id;
+    state.sessionStudent = { ...student };
+    document.getElementById('studentLookupHelp').textContent = `تم تحميل الطالب: ${student.name || 'بدون اسم'} — كوده ${student.code || 'غير متاح'}.`;
+}
+
+function clearStudentSetupForm() {
+    ['tsExistingStudentSearch', 'tsStudentCode', 'tsStudentName', 'tsStudentAge', 'tsStudentIQ'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+    });
+    const gender = document.getElementById('tsStudentGender');
+    const category = document.getElementById('tsStudentCategory');
+    const other = document.getElementById('tsStudentOtherCategory');
+    if (gender) gender.value = '';
+    if (category) category.value = '';
+    if (other) { other.value = ''; other.hidden = true; other.required = false; }
+    state.sessionStudent = null;
+    document.getElementById('studentLookupHelp').textContent = 'أدخل بيانات الطالب الجديد مرة واحدة؛ سيظهر كوده تلقائيًا بعد بدء أول جلسة.';
 }
 
 // General Event Listeners (Sidebar, Profile, etc.)
@@ -1504,29 +1427,23 @@ function initGeneralEventListeners() {
         if (!other.hidden) other.focus();
     });
 
-    document.getElementById('tsStudentSearch')?.addEventListener('input', () => {
-        populateTestStudentPicker();
-    });
-
-    document.getElementById('tsExistingStudentSelect')?.addEventListener('change', event => {
-        if (event.target.value) {
-            selectExistingTestStudent(event.target.value);
+    refreshStudentLookupOptions();
+    document.getElementById('loadExistingStudentBtn')?.addEventListener('click', () => {
+        const student = findStudentFromLookup(document.getElementById('tsExistingStudentSearch')?.value);
+        if (!student) {
+            alert('لم يتم العثور على طالب مطابق. اختر من القائمة باستخدام كود الطالب أو الاسم الكامل.');
             return;
         }
-        setTestStudentFormReadOnly(false);
-        const help = document.getElementById('tsExistingStudentHelp');
-        if (help) help.textContent = 'اختر طالبًا مسجلًا، أو أضف بيانات طالب جديد مرة واحدة فقط.';
+        fillStudentSetupForm(student);
     });
-
-    document.getElementById('newTestStudentBtn')?.addEventListener('click', () => {
-        prepareNewTestStudent();
-        const help = document.getElementById('tsExistingStudentHelp');
-        if (help) help.textContent = 'أدخل بيانات الطالب الجديد. بعد حفظ أول جلسة سيُنشأ له كود ثابت تلقائيًا.';
+    document.getElementById('newStudentBtn')?.addEventListener('click', clearStudentSetupForm);
+    document.getElementById('tsExistingStudentSearch')?.addEventListener('change', event => {
+        const student = findStudentFromLookup(event.target.value);
+        if (student) fillStudentSetupForm(student);
     });
 
     // Start session button
     document.getElementById("startTestsSessionBtn")?.addEventListener("click", () => {
-        const selectedStudentId = document.getElementById('tsExistingStudentSelect')?.value || '';
         const enteredName = document.getElementById("tsStudentName")?.value.trim() || '';
         const age = safeNumber(document.getElementById("tsStudentAge")?.value, null);
         const gender = document.getElementById("tsStudentGender")?.value;
@@ -1541,54 +1458,51 @@ function initGeneralEventListeners() {
 
         const selectedTests = Array.from(document.querySelectorAll(".test-checkbox:checked")).map(cb => cb.value);
         if (selectedTests.length === 0) { alert("يرجى تحديد اختبار واحد على الأقل."); return; }
-        let existingStudent = selectedStudentId
-            ? state.students.find(student => student.id === selectedStudentId)
-            : null;
+        if (!enteredName) { alert('يرجى إدخال اسم الطالب.'); document.getElementById('tsStudentName')?.focus(); return; }
+        if (age === null) { alert('يرجى إدخال عمر الطالب.'); document.getElementById('tsStudentAge')?.focus(); return; }
+        if (!gender) { alert('يرجى اختيار جنس الطالب.'); document.getElementById('tsStudentGender')?.focus(); return; }
+        if (!category) { alert('يرجى اختيار فئة الطالب.'); document.getElementById('tsStudentCategory')?.focus(); return; }
+        if (age !== null && (age < 1 || age > 120)) { alert('العمر يجب أن يكون بين سنة و120 سنة.'); return; }
+        if (iq !== null && (iq < 30 || iq > 160)) { alert('نسبة الذكاء يجب أن تكون بين 30 و160.'); return; }
 
-        if (selectedStudentId && !existingStudent) {
-            alert('لم يعد سجل الطالب المختار متاحًا. اختر الطالب مرة أخرى أو أضفه من جديد.');
-            populateTestStudentPicker();
-            return;
-        }
-
-        // New students are checked against the existing master list before a
-        // record is created.  Existing students are never overwritten here;
-        // this action only starts a new independent test session for them.
-        if (!existingStudent) {
-            if (!enteredName) { alert('يرجى إدخال اسم الطالب.'); document.getElementById('tsStudentName')?.focus(); return; }
-            if (age === null) { alert('يرجى إدخال عمر الطالب.'); document.getElementById('tsStudentAge')?.focus(); return; }
-            if (!gender) { alert('يرجى اختيار جنس الطالب.'); document.getElementById('tsStudentGender')?.focus(); return; }
-            if (!category) { alert('يرجى اختيار فئة الطالب.'); document.getElementById('tsStudentCategory')?.focus(); return; }
-            if (age < 1 || age > 120) { alert('العمر يجب أن يكون بين سنة و120 سنة.'); return; }
-            if (iq !== null && (iq < 30 || iq > 160)) { alert('نسبة الذكاء يجب أن تكون بين 30 و160.'); return; }
-
-            const normalizedName = normalizeIdentityText(enteredName);
-            const normalizedCategory = canonicalStudentCategory(category);
-            existingStudent = state.students.find(student =>
+        const enteredStudentCode = document.getElementById('tsStudentCode')?.value.trim() || '';
+        const normalizedName = normalizeIdentityText(enteredName);
+        const normalizedCategory = canonicalStudentCategory(category);
+        let existingStudent = state.students.find(student => String(student.code || '').toUpperCase() === enteredStudentCode.toUpperCase())
+            || state.students.find(student =>
                 normalizeIdentityText(student.name) === normalizedName
                 && Number(student.age) === Number(age)
                 && normalizeIdentityText(student.gender) === normalizeIdentityText(gender)
                 && canonicalStudentCategory(student.category) === normalizedCategory
             );
-            if (existingStudent) {
-                const shouldUseExisting = confirm(`يوجد طالب مسجل بنفس البيانات: ${getTestStudentPickerLabel(existingStudent)}. هل تريد بدء جلسة جديدة له؟`);
-                if (!shouldUseExisting) return;
-            } else {
-                const id = makeEntityId('student');
-                existingStudent = {
-                    id,
-                    code: makeStudentCode(id),
-                    name: enteredName,
-                    age,
-                    gender,
-                    iq,
-                    category,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                };
-                state.students.push(existingStudent);
-            }
+        if (existingStudent) {
+            existingStudent = Object.assign(existingStudent, {
+                name: enteredName,
+                age,
+                gender,
+                iq,
+                category,
+                updatedAt: new Date().toISOString()
+            });
+        } else {
+            const id = makeEntityId('student');
+            existingStudent = {
+                id,
+                code: makeStudentCode(id),
+                name: enteredName,
+                age,
+                gender,
+                iq,
+                category,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            state.students.push(existingStudent);
         }
+
+        document.getElementById('tsStudentCode').value = existingStudent.code;
+        document.getElementById('tsExistingStudentSearch').value = `${existingStudent.code} — ${existingStudent.name}`;
+        refreshStudentLookupOptions();
         
         state.activeStudentId = existingStudent.id;
         state.sessionStudent = { ...existingStudent };
@@ -1689,7 +1603,7 @@ function initGeneralEventListeners() {
     // Delete Session Action
     document.getElementById("deleteSessionBtn")?.addEventListener("click", () => {
         if (!state.activeSession) return;
-        if (confirmProtectedDeletion('هذه الجلسة')) {
+        if (confirm('هل أنت متأكد من حذف هذه الجلسة نهائيًا؟')) {
             const sessionId = state.activeSession.id;
             state.sessions = state.sessions.filter(s => s.id !== sessionId);
             state.activeSession = null;
@@ -1734,7 +1648,7 @@ function initGeneralEventListeners() {
         const studentId = document.getElementById('historyStudentSelect')?.value;
         const student = state.students.find(item => item.id === studentId);
         if (!student) return;
-        if (!confirmProtectedDeletion(`${student.name || 'هذا الطالب'} وكل جلساته`)) return;
+        if (!confirm(`هل أنت متأكد من حذف ${student.name || 'هذا الطالب'} وكل جلساته نهائيًا؟`)) return;
         deleteStudentRecord(studentId);
     });
 

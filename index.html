@@ -146,71 +146,6 @@
                         </div>
                     </div>
 
-                    <!-- Column 2: Available Tests list -->
-                    <div class="grid-panel tests-list-panel">
-                        <div class="panel-header">
-                            <h4>الاختبارات المتوفرة</h4>
-                        </div>
-                        <div class="test-category-group">
-                            <h5>الاختبارات البصرية</h5>
-                            <div class="mini-test-list">
-                                <div class="mini-test-item">
-                                    <span class="test-dot visual-dot"></span>
-                                    <div class="test-item-info">
-                                        <h6>البصري البسيط</h6>
-                                        <p>مثير بصري واحد - استجابة بزر المسافة</p>
-                                    </div>
-                                    <button class="launch-test-btn" data-test-type="visual-simple">ابدأ</button>
-                                </div>
-                                <div class="mini-test-item">
-                                    <span class="test-dot visual-dot"></span>
-                                    <div class="test-item-info">
-                                        <h6>البصري التمييزي</h6>
-                                        <p>مثير مستهدف ومثيرات مشتتة - زر المسافة</p>
-                                    </div>
-                                    <button class="launch-test-btn" data-test-type="visual-discriminative">ابدأ</button>
-                                </div>
-                                <div class="mini-test-item">
-                                    <span class="test-dot visual-dot"></span>
-                                    <div class="test-item-info">
-                                        <h6>البصري الاختياري</h6>
-                                        <p>مثيرات مختلفة، لكل مثير زر استجابة (أسهم)</p>
-                                    </div>
-                                    <button class="launch-test-btn" data-test-type="visual-choice">ابدأ</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="test-category-group">
-                            <h5>الاختبارات السمعية</h5>
-                            <div class="mini-test-list">
-                                <div class="mini-test-item">
-                                    <span class="test-dot auditory-dot"></span>
-                                    <div class="test-item-info">
-                                        <h6>السمعي البسيط</h6>
-                                        <p>مثير صوتي واحد - استجابة بزر المسافة</p>
-                                    </div>
-                                    <button class="launch-test-btn" data-test-type="auditory-simple">ابدأ</button>
-                                </div>
-                                <div class="mini-test-item">
-                                    <span class="test-dot auditory-dot"></span>
-                                    <div class="test-item-info">
-                                        <h6>السمعي التمييزي</h6>
-                                        <p>صوت مستهدف وأصوات مشتتة - زر المسافة</p>
-                                    </div>
-                                    <button class="launch-test-btn" data-test-type="auditory-discriminative">ابدأ</button>
-                                </div>
-                                <div class="mini-test-item">
-                                    <span class="test-dot auditory-dot"></span>
-                                    <div class="test-item-info">
-                                        <h6>السمعي الاختياري</h6>
-                                        <p>أصوات مختلفة، لكل صوت زر استجابة (A, B, C, D)</p>
-                                    </div>
-                                    <button class="launch-test-btn" data-test-type="auditory-choice">ابدأ</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Column 3: Charts/Performance Stats -->
                     <div class="grid-panel charts-panel">
                         <div class="panel-header">
@@ -238,7 +173,7 @@
             <section id="tests-view" class="view-screen">
                 <div class="section-header">
                     <h3>إعداد جلسة الاختبار</h3>
-                    <p>اختر طالبًا مسجلًا لبدء جلسة جديدة مرتبطة به، أو أضف طالبًا جديدًا مرة واحدة فقط.</p>
+                    <p>يمكن إدخال بيانات الطالب والمختص أو تخطيها، ثم تحديد الاختبارات المطلوبة وبدء الجلسة.</p>
                 </div>
 
                 <!-- Setup Forms Row: Student + Specialist -->
@@ -250,16 +185,19 @@
                             <h4>بيانات الطالب</h4>
                         </div>
                         <div class="styled-form">
-                            <div class="student-session-picker" id="testStudentPicker">
-                                <label for="tsExistingStudentSelect">الطالب المسجل</label>
-                                <div class="student-picker-controls">
-                                    <input id="tsStudentSearch" type="search" placeholder="ابحث بكود الطالب أو اسمه" autocomplete="off">
-                                    <button type="button" class="secondary-btn small-btn" id="newTestStudentBtn">إضافة طالب جديد</button>
+                            <div class="form-group">
+                                <label for="tsExistingStudentSearch">طالب مسجل سابقًا</label>
+                                <div class="student-lookup-row">
+                                    <input type="text" id="tsExistingStudentSearch" list="studentLookupOptions" autocomplete="off" placeholder="ابحث بكود الطالب أو اسمه">
+                                    <datalist id="studentLookupOptions"></datalist>
+                                    <button type="button" class="secondary-btn" id="loadExistingStudentBtn">تحميل الطالب</button>
+                                    <button type="button" class="secondary-btn" id="newStudentBtn">طالب جديد</button>
                                 </div>
-                                <select id="tsExistingStudentSelect" aria-describedby="tsExistingStudentHelp">
-                                    <option value="">-- اختر طالبًا لبدء جلسة جديدة --</option>
-                                </select>
-                                <p class="help-text" id="tsExistingStudentHelp">عند اختيار طالب، تُربط الجلسة الجديدة بسجله دون إعادة إدخال بياناته.</p>
+                                <span class="help-text" id="studentLookupHelp">اختر طالبًا مسجلًا لتظهر بياناته تلقائيًا؛ لا تعِد إدخالها في كل جلسة.</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="tsStudentCode">كود الطالب</label>
+                                <input type="text" id="tsStudentCode" readonly placeholder="يُنشأ تلقائيًا عند إضافة الطالب لأول مرة">
                             </div>
                             <div class="form-group">
                                 <label for="tsStudentName">اسم الطالب رباعي <span class="required-label">(إجباري)</span></label>
